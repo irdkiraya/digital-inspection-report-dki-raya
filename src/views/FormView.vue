@@ -47,27 +47,19 @@ onMounted(async () => {
     currentProfileName = ''
   }
 
-  if (profileId) {
-    const { data } = await fetchAdvisorsByProfile(profileId)
-    
-    // Jika data dari database ada, gunakan; jika kosong, gunakan fallback per cabang
-    if (data && data.length > 0) {
-      advisorsList.value = data
-    } else {
-      if (currentProfileName.includes('serang')) {
-        advisorsList.value = [
-          { nama: 'Firman Faturahman' },
-          { nama: 'Ira Mutiara S.S.' }
-        ]
-      } else {
-        // Default ke Citra Raya
-        advisorsList.value = [
-          { nama: 'Fatha Arighi' },
-          { nama: 'Achmad Firdaus' },
-          { nama: 'Mekanik DMS' }
-        ]
-      }
-    }
+  // Tentukan daftar SA secara tegas berdasarkan nama profil/cabang yang sedang aktif login
+  if (currentProfileName.includes('serang')) {
+    advisorsList.value = [
+      { nama: 'Firman Faturahman' },
+      { nama: 'Ira Mutiara S. Situmorang' }
+    ]
+  } else {
+    // Default / khusus untuk Citra Raya
+    advisorsList.value = [
+      { nama: 'Fatha Arighi' },
+      { nama: 'Achmad Firdaus' },
+      { nama: 'Mekanik DMS' }
+    ]
   }
 })
 
