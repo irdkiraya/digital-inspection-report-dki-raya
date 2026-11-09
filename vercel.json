@@ -1,3 +1,7 @@
-git add .
-git commit -m "fix: add vercel.json for router SPA rewrite"
-git push
+{
+  "version": 2,
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "destination": "/index.html" }
+  ]
+}
