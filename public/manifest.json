@@ -7,13 +7,13 @@
   "theme_color": "#2563eb",
   "icons": [
     {
-      "src": "/icon-app.png",
+      "src": "/ir-digital.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-app.png",
+      "src": "/ir-digital.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
