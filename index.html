@@ -9,7 +9,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-  <!-- PWA & Mobile App Icons (Wajib Mengarah ke ir-digital.png) -->
+  <!-- PWA & Mobile App Icons -->
   <link rel="manifest" href="/manifest.json" />
   <meta name="theme-color" content="#2563eb" />
   <meta name="mobile-web-app-capable" content="yes" />
@@ -19,3 +19,11 @@
   <link rel="apple-touch-icon" href="/ir-digital.png" />
   <link rel="icon" type="image/png" href="/ir-digital.png" />
 </head>
+<body class="bg-gray-50 text-gray-800 antialiased">
+  <!-- Elemen wajib tempat Vue memuat seluruh aplikasi Anda -->
+  <div id="app"></div>
+
+  <!-- Skrip utama Vue.js (Wajib ada agar halaman tidak blank) -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
