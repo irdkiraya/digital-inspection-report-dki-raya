@@ -14,7 +14,7 @@ const blank = () => ({
   nama: '', 
   advisor: '', 
   namaMekanik: '', 
-  catatanMekanik: '', // BARU: Data khusus rekap Excel, tidak masuk PDF
+  catatanMekanik: '', // Data khusus rekap Excel, tidak masuk PDF
   telp: '', 
   polisi: '', 
   rencana: '', 
@@ -37,20 +37,36 @@ const getActiveProfileId = () => {
 
 onMounted(async () => {
   const profileId = getActiveProfileId()
+  let currentProfileName = ''
+  
+  // Coba ambil nama profil aktif dari localStorage untuk mendeteksi cabang
+  try {
+    const profile = JSON.parse(localStorage.getItem('active_profile'))
+    currentProfileName = profile ? (profile.nama || profile.branch_name || '').toLowerCase() : ''
+  } catch {
+    currentProfileName = ''
+  }
+
   if (profileId) {
     const { data } = await fetchAdvisorsByProfile(profileId)
     
-    // Fallback daftar advisor jika data dari database perlu dilengkapi sesuai standar cabang
+    // Jika data dari database ada, gunakan; jika kosong, gunakan fallback per cabang
     if (data && data.length > 0) {
       advisorsList.value = data
     } else {
-      advisorsList.value = [
-        { nama: 'Fatha Arighi' },
-        { nama: 'Achmad Firdaus' },
-        { nama: 'Mekanik DMS' },
-        { nama: 'Firman Faturahman' },
-        { nama: 'Ira Mutiara S.S.' }
-      ]
+      if (currentProfileName.includes('serang')) {
+        advisorsList.value = [
+          { nama: 'Firman Faturahman' },
+          { nama: 'Ira Mutiara S.S.' }
+        ]
+      } else {
+        // Default ke Citra Raya
+        advisorsList.value = [
+          { nama: 'Fatha Arighi' },
+          { nama: 'Achmad Firdaus' },
+          { nama: 'Mekanik DMS' }
+        ]
+      }
     }
   }
 })
@@ -62,7 +78,7 @@ watch(() => props.initialData, (val) => {
     f.nama = val.nama
     f.advisor = val.advisor
     f.namaMekanik = val.namaMekanik || ''
-    f.catatanMekanik = val.catatanMekanik || '' // BARU
+    f.catatanMekanik = val.catatanMekanik || ''
     f.telp = val.telp
     f.polisi = val.polisi
     f.rencana = val.rencana
@@ -165,7 +181,7 @@ async function save() {
         </div>
       </div>
 
-      <!-- KOLOM BARU: Catatan Internal Mekanik (Hanya Rekap Export Excel, Tidak Masuk Cetak PDF) -->
+      <!-- Catatan Internal Mekanik (Hanya Rekap Export Excel, Tidak Masuk Cetak PDF) -->
       <div class="space-y-1.5 p-4 bg-amber-50/50 border border-amber-200/80 rounded-2xl">
         <label class="text-[11px] font-bold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
           <i class="fa-solid fa-clipboard-user text-amber-600"></i>
