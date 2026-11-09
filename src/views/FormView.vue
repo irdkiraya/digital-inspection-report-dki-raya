@@ -8,12 +8,13 @@ const emit = defineEmits(['save'])
 
 let k = 0
 const row = (jasa = '', qty = 1, harga = 0) => ({ k: ++k, jasa, qty, harga })
-// ✅ Ditambahkan: namaMekanik ke objek blank
+
 const blank = () => ({ 
   tanggal: new Date().toISOString().slice(0, 10), 
   nama: '', 
   advisor: '', 
-  namaMekanik: '', // BARU
+  namaMekanik: '', 
+  catatanMekanik: '', // BARU: Data khusus rekap Excel, tidak masuk PDF
   telp: '', 
   polisi: '', 
   rencana: '', 
@@ -38,18 +39,30 @@ onMounted(async () => {
   const profileId = getActiveProfileId()
   if (profileId) {
     const { data } = await fetchAdvisorsByProfile(profileId)
-    advisorsList.value = data
+    
+    // Fallback daftar advisor jika data dari database perlu dilengkapi sesuai standar cabang
+    if (data && data.length > 0) {
+      advisorsList.value = data
+    } else {
+      advisorsList.value = [
+        { nama: 'Fatha Arighi' },
+        { nama: 'Achmad Firdaus' },
+        { nama: 'Mekanik DMS' },
+        { nama: 'Firman Faturahman' },
+        { nama: 'Ira Mutiara S.S.' }
+      ]
+    }
   }
 })
 
-// ✅ Ditambahkan: pemuatan namaMekanik saat mode edit
 watch(() => props.initialData, (val) => {
   if (val) {
     f.id = val.id
     f.tanggal = val.tanggal
     f.nama = val.nama
     f.advisor = val.advisor
-    f.namaMekanik = val.namaMekanik || '' // BARU
+    f.namaMekanik = val.namaMekanik || ''
+    f.catatanMekanik = val.catatanMekanik || '' // BARU
     f.telp = val.telp
     f.polisi = val.polisi
     f.rencana = val.rencana
@@ -68,7 +81,6 @@ async function save() {
   message.value = { text: '', type: '' }
   const items = f.items.filter((i) => i.jasa.trim())
 
-  // Validasi tetap sama — namaMekanik opsional, ubah di sini jika wajib
   if (!f.nama.trim() || !f.polisi.trim() || !f.tanggal || !items.length) {
     message.value = { 
       text: 'Mohon lengkapi Tanggal Pemeriksaan, Nama Customer, Nomor Polisi, dan minimal satu baris Jasa/Sparepart.', 
@@ -135,7 +147,6 @@ async function save() {
             </option>
           </select>
         </div>
-        <!-- ✅ BARIS BARU: Nama Mekanik -->
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Mekanik</label>
           <input v-model="f.namaMekanik" placeholder="Nama mekanik yang menangani" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
@@ -148,10 +159,19 @@ async function save() {
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nomor Polisi</label>
           <input v-model="f.polisi" placeholder="B 1234 XYZ" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 uppercase placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
-        <div class="space-y-1.5">
+        <div class="space-y-1.5 sm:col-span-2 lg:col-span-3">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Rencana Penggantian</label>
           <input v-model="f.rencana" placeholder="Mis. 20 Nov 2026 / 5.000 km" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
+      </div>
+
+      <!-- KOLOM BARU: Catatan Internal Mekanik (Hanya Rekap Export Excel, Tidak Masuk Cetak PDF) -->
+      <div class="space-y-1.5 p-4 bg-amber-50/50 border border-amber-200/80 rounded-2xl">
+        <label class="text-[11px] font-bold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
+          <i class="fa-solid fa-clipboard-user text-amber-600"></i>
+          Catatan / Verifikasi Mekanik (Khusus Rekap Excel - Tidak Tercetak di PDF)
+        </label>
+        <input v-model="f.catatanMekanik" placeholder="Ketik keterangan atau nama verifikator mekanik untuk laporan internal..." class="w-full bg-white border border-amber-300 rounded-xl px-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition shadow-2xs" />
       </div>
 
       <div class="space-y-3 pt-4 border-t border-slate-200">
@@ -162,7 +182,8 @@ async function save() {
             <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 hidden sm:flex">{{ i + 1 }}</span>
             <input v-model="it.jasa" placeholder="Nama Jasa / Sparepart" class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs" />
             <div class="flex items-center gap-2">
-              <input type="number" min="1" v-model.number="it.qty" placeholder="Qty" class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" />
+              <!-- QTY Desimal menggunakan step="any" -->
+              <input type="number" step="any" min="0" v-model.number="it.qty" placeholder="Qty" class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" />
               <input type="number" min="0" v-model.number="it.harga" placeholder="Harga Satuan" class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600 shadow-2xs" />
             </div>
             <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
