@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, watch, onMounted } from 'vue'
+import { reactive, ref, watch, onMounted, computed } from 'vue'
 import { rp, total } from '../utils'
 import { fetchAdvisorsByProfile, saveInspectionRecord } from '../services/inspectionsServicesSupabase'
 
@@ -14,7 +14,7 @@ const blank = () => ({
   nama: '', 
   advisor: '', 
   namaMekanik: '', 
-  catatanMekanik: '', // Data khusus rekap Excel, tidak masuk PDF
+  catatanMekanik: '', // Data khusus rekap Excel / export, tidak masuk PDF
   telp: '', 
   polisi: '', 
   rencana: '', 
@@ -25,6 +25,7 @@ const f = reactive(blank())
 const advisorsList = ref([])
 const message = ref({ text: '', type: '' })
 const loading = ref(false)
+const isSerangBranch = ref(false)
 
 const getActiveProfileId = () => {
   try {
@@ -36,10 +37,9 @@ const getActiveProfileId = () => {
 }
 
 onMounted(async () => {
-  const profileId = getActiveProfileId()
   let currentProfileName = ''
   
-  // Coba ambil nama profil aktif dari localStorage untuk mendeteksi cabang
+  // Ambil nama profil aktif dari localStorage untuk mendeteksi cabang
   try {
     const profile = JSON.parse(localStorage.getItem('active_profile'))
     currentProfileName = profile ? (profile.nama || profile.branch_name || '').toLowerCase() : ''
@@ -47,8 +47,11 @@ onMounted(async () => {
     currentProfileName = ''
   }
 
+  // Tentukan apakah cabang Serang
+  isSerangBranch.value = currentProfileName.includes('serang')
+
   // Tentukan daftar SA secara tegas berdasarkan nama profil/cabang yang sedang aktif login
-  if (currentProfileName.includes('serang')) {
+  if (isSerangBranch.value) {
     advisorsList.value = [
       { nama: 'Firman Faturahman' },
       { nama: 'Ira Mutiara S. Situmorang' }
@@ -173,7 +176,7 @@ async function save() {
         </div>
       </div>
 
-      <!-- Catatan Internal Mekanik (Hanya Rekap Export Excel, Tidak Masuk Cetak PDF) -->
+      <!-- Catatan Internal Mekanik (Khusus Rekap Excel & Ekspor XC - Tidak Tercetak di PDF) -->
       <div class="space-y-1.5 p-4 bg-amber-50/50 border border-amber-200/80 rounded-2xl">
         <label class="text-[11px] font-bold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
           <i class="fa-solid fa-clipboard-user text-amber-600"></i>
@@ -190,7 +193,6 @@ async function save() {
             <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 hidden sm:flex">{{ i + 1 }}</span>
             <input v-model="it.jasa" placeholder="Nama Jasa / Sparepart" class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs" />
             <div class="flex items-center gap-2">
-              <!-- QTY Desimal menggunakan step="any" -->
               <input type="number" step="any" min="0" v-model.number="it.qty" placeholder="Qty" class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" />
               <input type="number" min="0" v-model.number="it.harga" placeholder="Harga Satuan" class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600 shadow-2xs" />
             </div>
@@ -209,10 +211,21 @@ async function save() {
         </button>
       </div>
 
+      <!-- Info Cabang & Catatan Diskon Dinamis -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-200 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
         <div>
           <p class="text-[11px] font-bold text-slate-500 uppercase">Catatan</p>
-          <p class="text-xs text-slate-700 mt-0.5 font-medium">Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 15%.</p>
+          <p class="text-xs text-slate-700 mt-0.5 font-medium">
+            Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 
+            <span class="font-bold text-blue-600">{{ isSerangBranch ? '10%' : '15%' }}</span>.
+          </p>
+          
+          <!-- Informasi Rekening BCA Khusus Cabang Serang -->
+          <div v-if="isSerangBranch" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
+            <p class="text-slate-900 font-bold">Rekening BCA Cabang Serang:</p>
+            <p>An. PT. Astra International Tbk</p>
+            <p class="text-blue-600 font-bold">No Rekening: 093.302.2533</p>
+          </div>
         </div>
         <div class="text-right w-full sm:w-auto">
           <p class="text-[11px] font-bold text-slate-500 uppercase">Total Keseluruhan</p>
