@@ -78,9 +78,7 @@ async function onDelete(r) {
     if (res.success) {
       flash(res.message)
       refreshKey.value++
-      // Jika ListView menggunakan state lokal rows, filter baris yang dihapus:
       rows.value = rows.value.filter((x) => x.id !== r.id)
-      // Atau jika menggunakan reload data dari database, panggil ulang fungsi load data ListView.
     } else {
       alert('Gagal menghapus: ' + res.error)
     }
@@ -90,7 +88,7 @@ async function onDelete(r) {
 
 <template>
   <div>
-    <!-- SPLASH SCREEN UTAMA (Tampil paling awal sebelum login/aplikasi dimuat) -->
+    <!-- SPLASH SCREEN UTAMA -->
     <transition name="fade">
       <div v-if="isLoading" class="fixed inset-0 z-50 bg-gradient-to-br from-sky-700 via-sky-600 to-sky-500 flex flex-col items-center justify-center text-white px-4">
         <div class="text-center space-y-4 animate-pulse">
@@ -109,12 +107,10 @@ async function onDelete(r) {
       </div>
     </transition>
 
-    <!-- KONTROL UTAMA DENGAN TRANSISI HALUS (FADE & SLIDE) -->
+    <!-- KONTROL UTAMA -->
     <transition name="page-transition" mode="out-in">
-      <!-- JIKA BELUM LOGIN: TAMPILKAN HALAMAN LOGIN -->
       <LoginView v-if="!currentProfile" @loginSuccess="handleLoginSuccess" key="login" />
 
-      <!-- JIKA SUDAH LOGIN: TAMPILKAN APLIKASI UTAMA -->
       <div v-else key="app" class="app-layout bg-[#F3F6FC] min-h-screen md:h-screen flex flex-col md:flex-row p-3 md:p-4 gap-4 md:gap-6 overflow-x-hidden md:overflow-hidden font-['Poppins',sans-serif] pb-24 md:pb-4 relative">
 
         <!-- DESKTOP SIDEBAR -->
@@ -147,7 +143,7 @@ async function onDelete(r) {
                 :class="page === 'attendance' ? 'bg-sky-50 text-sky-700 border border-sky-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
                 @click="page = 'attendance'">
                 <i class="fa-solid fa-clipboard-user text-sm"></i>
-                <span>Kehadiran</span>
+                <span>Kedatangan</span>
               </button>
             </nav>
           </div>
@@ -177,7 +173,6 @@ async function onDelete(r) {
                 <h1 class="text-lg md:text-xl font-bold tracking-wide drop-shadow-sm">ASTRA DAIHATSU</h1>
                 <p class="text-[11px] md:text-xs text-sky-100 font-medium mt-0.5">{{ currentProfile.nama }} · {{ currentProfile.kota }}</p>
               </div>
-              <!-- Tombol Logout Mobile di Header -->
               <button @click="handleLogout" class="md:hidden bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 backdrop-blur-sm">
                 <i class="fa-solid fa-right-from-bracket"></i> Keluar
               </button>
@@ -209,7 +204,7 @@ async function onDelete(r) {
           <button @click="page = 'attendance'; editItem = null" class="flex flex-col items-center gap-1 transition-all"
             :class="page === 'attendance' ? 'text-blue-600 font-extrabold' : 'text-slate-400 font-semibold'">
             <i class="fa-solid fa-clipboard-user text-sm"></i>
-            <span class="text-[10px]">Kehadiran</span>
+            <span class="text-[10px]">Kedatangan</span>
           </button>
         </nav>
 
@@ -225,7 +220,6 @@ async function onDelete(r) {
 </template>
 
 <style scoped>
-/* Transisi untuk Splash Screen */
 .fade-leave-active {
   transition: opacity 0.5s ease;
 }
@@ -233,7 +227,6 @@ async function onDelete(r) {
   opacity: 0;
 }
 
-/* Transisi lembut (Soft Animation) saat berpindah dari halaman Login ke Aplikasi Utama */
 .page-transition-enter-active,
 .page-transition-leave-active {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
