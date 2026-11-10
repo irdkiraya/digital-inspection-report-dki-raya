@@ -1,13 +1,18 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { fetchAttendanceByDate, checkInspectionByPolisi, insertAttendance, updateAttendanceStatus } from '../services/attendanceService'
+import { supabase } from '../supabase'
 
 const emit = defineEmits(['detail'])
 
 const currentDate = ref(new Date().toISOString().slice(0, 10))
-const attendanceList = ref([])
+const attendanceList = ref([])      // Data untuk tabel harian
 const loading = ref(false)
 const showModal = ref(false)
+
+// State untuk Total Kumulatif dari awal input sampai sekarang
+const cumulativeInspectionCount = ref(0)
+const cumulativeAttendanceCount = ref(0)
 
 // State Form Pop-up
 const formPolisi = ref('')
@@ -29,21 +34,46 @@ async function loadAttendance() {
   if (!profileId) return
 
   loading.value = true
-  const { data } = await fetchAttendanceByDate(profileId, currentDate.value)
-  attendanceList.value = data
-  loading.value = false
+  try {
+    // 1. Ambil data kedatangan harian untuk tabel berdasarkan tanggal yang dipilih
+    const { data } = await fetchAttendanceByDate(profileId, currentDate.value)
+    attendanceList.value = data || []
+
+    // 2. HITUNG KUMULATIF REAL-TIME: Total seluruh inspection report dari tabel 'inspeksi' untuk cabang ini
+    const { count: totalInsp } = await supabase
+      .from('inspeksi')
+      .select('*', { count: 'exact', head: true })
+      .eq('id_profile', profileId)
+    
+    cumulativeInspectionCount.value = totalInsp || 0
+
+    // 3. HITUNG KUMULATIF REAL-TIME: Total seluruh kedatangan dari tabel 'attendance' untuk cabang ini
+    const { count: totalHadir } = await supabase
+      .from('attendance')
+      .select('*', { count: 'exact', head: true })
+      .eq('id_profile', profileId)
+      .eq('status_hadir', true)
+
+    cumulativeAttendanceCount.value = totalHadir || 0
+
+  } catch (err) {
+    console.error('Gagal memuat data kedatangan:', err.message)
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => {
   loadAttendance()
 })
 
-// Hitung Statistik & Persentase Kedatangan secara Real-time
-const totalBooking = computed(() => attendanceList.value.length)
-const totalKedatangan = computed(() => attendanceList.value.filter(i => i.status_hadir).length)
+// COMPUTED UNTUK KARTU STATISTIK (Kumulatif Real-time dari awal sampai akhir)
+const totalInspectionReport = computed(() => cumulativeInspectionCount.value)
+const totalKedatangan = computed(() => cumulativeAttendanceCount.value)
+
 const percentageKedatangan = computed(() => {
-  if (totalBooking.value === 0) return 0
-  return Math.round((totalKedatangan.value / totalBooking.value) * 100)
+  if (totalInspectionReport.value === 0) return 0
+  return Math.round((totalKedatangan.value / totalInspectionReport.value) * 100)
 })
 
 // Validasi Nopol saat diketik di Pop-up untuk preview data inspeksi
@@ -76,7 +106,7 @@ async function handleSaveAttendance() {
     showModal.value = false
     formPolisi.value = ''
     previewInspection.value = null
-    loadAttendance()
+    loadAttendance() // Muat ulang data agar akumulasi dan tabel ter-update
   }
 }
 
@@ -86,6 +116,7 @@ async function toggleKedatangan(item) {
   const res = await updateAttendanceStatus(item.id, newStatus)
   if (res.success) {
     item.status_hadir = newStatus
+    loadAttendance() // Perbarui ulang hitungan kumulatif kedatangan di card atas
   }
 }
 
@@ -127,12 +158,12 @@ async function showDetailByPolisi(polisi) {
       </div>
     </div>
 
-    <!-- Statistik Card & Persentase Kedatangan (Real-time) -->
+    <!-- Statistik Card & Persentase Kedatangan (Kumulatif Real-time) -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
         <div>
           <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Inspection Report</p>
-          <p class="text-2xl font-extrabold text-slate-900 mt-1">{{ totalBooking }} <span class="text-xs font-normal text-slate-500">orang</span></p>
+          <p class="text-2xl font-extrabold text-slate-900 mt-1">{{ totalInspectionReport }} <span class="text-xs font-normal text-slate-500">orang</span></p>
         </div>
         <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center text-lg font-bold">
           <i class="fa-solid fa-calendar-check"></i>
@@ -160,7 +191,7 @@ async function showDetailByPolisi(polisi) {
       </div>
     </div>
 
-    <!-- Tabel List Kedatangan -->
+    <!-- Tabel List Kedatangan (Difilter Berdasarkan Tanggal) -->
     <div class="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
