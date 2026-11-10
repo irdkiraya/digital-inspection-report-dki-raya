@@ -12,7 +12,8 @@ const startDate = ref('')
 const endDate = ref('')
 const currentPage = ref(1)
 const pageSize = 10
-const totalRowsCount = ref(0)
+const totalRowsCount = ref(0)        // Total data sesuai filter tabel
+const cumulativeTotalCount = ref(0)   // Total keseluruhan data kumulatif dari awal input sampai sekarang
 
 // Ambil ID Cabang aktif dari localStorage
 const getActiveProfileId = () => {
@@ -31,6 +32,17 @@ async function loadData() {
 
   loading.value = true
   try {
+    // 1. Ambil total keseluruhan data kumulatif dari awal (tanpa filter tanggal & tanpa range pagination)
+    const { count: totalAll, error: errAll } = await supabase
+      .from('inspeksi')
+      .select('*', { count: 'exact', head: true })
+      .eq('id_profile', profileId)
+
+    if (!errAll) {
+      cumulativeTotalCount.value = totalAll || 0
+    }
+
+    // 2. Query utama untuk data tabel (dengan filter tanggal & pagination)
     let query = supabase
       .from('inspeksi')
       .select(`
@@ -126,6 +138,30 @@ function handleFilterChange() {
       </button>
     </div>
 
+    <!-- KARTU STATISTIK KUMULATIF REAL-TIME -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-white p-5 rounded-3xl border border-slate-200/85 shadow-xs flex items-center justify-between">
+        <div>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Inspection Report (Kumulatif)</p>
+          <p class="text-2xl font-extrabold text-slate-900 mt-1">{{ cumulativeTotalCount }} <span class="text-xs font-normal text-slate-500">orang</span></p>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center text-lg font-bold">
+          <i class="fa-solid fa-clipboard-list"></i>
+        </div>
+      </div>
+
+      <!-- Kartu Statistik opsional lain atau info rentang data -->
+      <div class="bg-white p-5 rounded-3xl border border-slate-200/85 shadow-xs flex items-center justify-between">
+        <div>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Data Ditampilkan (Filter Tabel)</p>
+          <p class="text-2xl font-extrabold text-blue-600 mt-1">{{ totalRowsCount }} <span class="text-xs font-normal text-slate-500">data</span></p>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold">
+          <i class="fa-solid fa-filter"></i>
+        </div>
+      </div>
+    </div>
+
     <!-- FILTER & PENCARIAN -->
     <div class="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center gap-3">
       <div class="relative flex-1 w-full">
@@ -154,10 +190,6 @@ function handleFilterChange() {
           class="bg-slate-50 border border-slate-200 rounded-2xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-blue-500"
         />
       </div>
-
-      <span class="bg-blue-50 text-blue-700 text-xs font-bold px-3.5 py-2 rounded-2xl shrink-0 border border-blue-200">
-        Total: {{ totalRowsCount }} data
-      </span>
     </div>
 
     <!-- LOADING STATE -->
