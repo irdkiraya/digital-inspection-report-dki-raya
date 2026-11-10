@@ -1,7 +1,7 @@
 <script setup>
-import { reactive, ref, watch, onMounted, computed } from 'vue'
+import { reactive, ref, watch, onMounted } from 'vue'
 import { rp, total } from '../utils'
-import { fetchAdvisorsByProfile, saveInspectionRecord } from '../services/inspectionsServicesSupabase'
+import { saveInspectionRecord } from '../services/inspectionsServicesSupabase'
 
 const props = defineProps({ initialData: Object })
 const emit = defineEmits(['save'])
@@ -13,8 +13,7 @@ const blank = () => ({
   tanggal: new Date().toISOString().slice(0, 10), 
   nama: '', 
   advisor: '', 
-  namaMekanik: '', 
-  catatanMekanik: '', // Data khusus rekap Excel, tidak masuk PDF
+  namaMekanik: '', // 1 Inputan Utama Mekanik yang otomatis masuk ke Excel/Rekap & tidak tercetak di PDF
   telp: '', 
   polisi: '', 
   rencana: '', 
@@ -39,7 +38,6 @@ const getActiveProfileId = () => {
 onMounted(async () => {
   let currentProfileName = ''
   
-  // Coba ambil nama profil aktif dari localStorage untuk mendeteksi cabang
   try {
     const profile = JSON.parse(localStorage.getItem('active_profile'))
     currentProfileName = profile ? (profile.nama || profile.branch_name || '').toLowerCase() : ''
@@ -47,17 +45,14 @@ onMounted(async () => {
     currentProfileName = ''
   }
 
-  // Tentukan apakah cabang Serang
   isSerangBranch.value = currentProfileName.includes('serang')
 
-  // Tentukan daftar SA secara tegas berdasarkan nama profil/cabang yang sedang aktif login
   if (isSerangBranch.value) {
     advisorsList.value = [
       { nama: 'Firman Faturahman' },
       { nama: 'Ira Mutiara S. Situmorang' }
     ]
   } else {
-    // Default / khusus untuk Citra Raya
     advisorsList.value = [
       { nama: 'Fatha Arighi' },
       { nama: 'Achmad Firdaus' },
@@ -72,8 +67,8 @@ watch(() => props.initialData, (val) => {
     f.tanggal = val.tanggal
     f.nama = val.nama
     f.advisor = val.advisor
-    f.namaMekanik = val.namaMekanik || ''
-    f.catatanMekanik = val.catatanMekanik || ''
+    // Menyatukan mapping data mekanik agar aman dari data lama manapun
+    f.namaMekanik = val.namaMekanik || val.catatanMekanik || ''
     f.telp = val.telp
     f.polisi = val.polisi
     f.rencana = val.rencana
@@ -108,8 +103,14 @@ async function save() {
 
   loading.value = true
 
-  const recordPayload = { ...f, items }
-  const result = await saveInspectionRecord(recordPayload, profileId, !!props.initialData)
+  // Sinkronisasi otomatis ke catatanMekanik agar terekap sempurna di Excel & Export tanpa cetak PDF
+  const payloadData = { 
+    ...f, 
+    catatanMekanik: f.namaMekanik, 
+    items 
+  }
+
+  const result = await saveInspectionRecord(payloadData, profileId, !!props.initialData)
 
   loading.value = false
 
@@ -118,7 +119,7 @@ async function save() {
   } else {
     message.value = { text: result.message, type: 'success' }
     setTimeout(() => {
-      emit('save', recordPayload)
+      emit('save', payloadData)
     }, 1000)
   }
 }
@@ -158,10 +159,15 @@ async function save() {
             </option>
           </select>
         </div>
+        
+        <!-- 1 INPUTAN TUNGGAL MEKANIK (Masuk Rekap Excel / Export, Tidak Masuk PDF) -->
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Mekanik</label>
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1">
+            <i class="fa-solid fa-user-gear text-blue-600 text-[10px]"></i> Nama Mekanik (Rekap Excel)
+          </label>
           <input v-model="f.namaMekanik" placeholder="Nama mekanik yang menangani" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
+
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nomor Telepon</label>
           <input type="tel" v-model="f.telp" placeholder="08xxxxxxxxxx" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
@@ -176,15 +182,6 @@ async function save() {
         </div>
       </div>
 
-      <!-- Catatan Internal Mekanik (Hanya Rekap Excel, Tidak Masuk Cetak PDF) -->
-      <div class="space-y-1.5 p-4 bg-amber-50/50 border border-amber-200/80 rounded-2xl">
-        <label class="text-[11px] font-bold text-amber-900 uppercase tracking-wide flex items-center gap-1.5">
-          <i class="fa-solid fa-clipboard-user text-amber-600"></i>
-          Catatan / Verifikasi Mekanik (Khusus Rekap Excel - Tidak Tercetak di PDF)
-        </label>
-        <input v-model="f.catatanMekanik" placeholder="Ketik keterangan atau nama verifikator mekanik untuk laporan internal..." class="w-full bg-white border border-amber-300 rounded-xl px-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition shadow-2xs" />
-      </div>
-
       <div class="space-y-3 pt-4 border-t border-slate-200">
         <h3 class="font-bold text-xs text-slate-900 uppercase tracking-wide">Daftar Jasa & Sparepart</h3>
 
@@ -193,7 +190,6 @@ async function save() {
             <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 hidden sm:flex">{{ i + 1 }}</span>
             <input v-model="it.jasa" placeholder="Nama Jasa / Sparepart" class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs" />
             <div class="flex items-center gap-2">
-              <!-- QTY Desimal menggunakan step="any" -->
               <input type="number" step="any" min="0" v-model.number="it.qty" placeholder="Qty" class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" />
               <input type="number" min="0" v-model.number="it.harga" placeholder="Harga Satuan" class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600 shadow-2xs" />
             </div>
@@ -220,7 +216,6 @@ async function save() {
             <span class="font-bold text-blue-600">{{ isSerangBranch ? '10%' : '15%' }}</span>.
           </p>
 
-          <!-- Rekening BCA Khusus Cabang Serang -->
           <div v-if="isSerangBranch" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
             <p class="text-slate-900 font-bold">Rekening BCA Cabang Serang:</p>
             <p>An. PT. Astra International Tbk</p>
