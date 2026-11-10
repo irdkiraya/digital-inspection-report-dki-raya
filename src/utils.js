@@ -117,7 +117,13 @@ export async function exportPdf(r, advisors = []) {
         rp(i.harga), 
         rp((+i.qty || 0) * (+i.harga || 0))
       ]),
-      [{ content: 'TOTAL', colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } }, { content: rp(total(r)), styles: { fontStyle: 'bold' } }]
+      // Kolom TOTAL diposisikan di tengah dengan colspan: 2 dan ditebalkan (bold) beserta nominalnya
+      [
+        { content: 'TOTAL', colSpan: 2, styles: { halign: 'center', fontStyle: 'bold' } }, 
+        { content: '', styles: { fontStyle: 'bold' } }, 
+        { content: '', styles: { fontStyle: 'bold' } }, 
+        { content: rp(total(r)), styles: { fontStyle: 'bold', halign: 'right' } }
+      ]
     ],
     theme: 'grid',
     styles: { fontSize: tableFontSize, cellPadding: cellPadding, lineColor: [150, 170, 200] },
