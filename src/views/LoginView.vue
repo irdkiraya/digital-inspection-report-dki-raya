@@ -21,7 +21,7 @@ async function handleLogin() {
   const cleanPassword = password.value.trim()
 
   try {
-    // 1. Bypass/Hardcoded khusus untuk akun testing agar langsung tembus tanpa kendala database
+    // 1. Bypass/Hardcoded khusus untuk akun testing dengan ID TERISOLASI (Tidak sama dengan Serang)
     if (cleanEmail === 'irtestingdki@gmail.com' && cleanPassword === 'Testing123') {
       const { data: serangProfile } = await supabase
         .from('profile')
@@ -32,7 +32,8 @@ async function handleLogin() {
       const baseProfile = serangProfile && serangProfile.length ? serangProfile[0] : {}
 
       const mockTestingProfile = {
-        id: baseProfile.id || 'testing-profile-id',
+        // PERBAIKAN UTAMA: Gunakan ID unik khusus testing agar data tidak tercampur dengan Serang
+        id: 'ir-testing-profile-unique-id-999', 
         email: 'irtestingdki@gmail.com',
         nama: baseProfile.nama || 'PT. ASTRA DAIHATSU SERANG (TESTING)',
         alamat: baseProfile.alamat || 'Jl. Jend. Sudirman No.45, Panancangan, Cipocok Jaya, Kota Serang',
