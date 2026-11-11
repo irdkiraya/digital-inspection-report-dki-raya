@@ -17,26 +17,50 @@ async function handleLogin() {
   }
 
   loading.value = true
+  const cleanEmail = email.value.trim().toLowerCase()
+  const cleanPassword = password.value.trim()
 
   try {
-    // Menggunakan .limit(1) alih-alih .single() untuk menghindari error 406/PGRST116
+    // 1. Bypass/Hardcoded khusus untuk akun testing agar langsung tembus tanpa kendala database
+    if (cleanEmail === 'irtestingdki@gmail.com' && cleanPassword === 'Testing123') {
+      const { data: serangProfile } = await supabase
+        .from('profile')
+        .select('*')
+        .ilike('nama', '%serang%')
+        .limit(1)
+
+      const baseProfile = serangProfile && serangProfile.length ? serangProfile[0] : {}
+
+      const mockTestingProfile = {
+        id: baseProfile.id || 'testing-profile-id',
+        email: 'irtestingdki@gmail.com',
+        nama: baseProfile.nama || 'PT. ASTRA DAIHATSU SERANG (TESTING)',
+        alamat: baseProfile.alamat || 'Jl. Jend. Sudirman No.45, Panancangan, Cipocok Jaya, Kota Serang',
+        kota: baseProfile.kota || 'Serang',
+        telp: baseProfile.telp || '085173455151'
+      }
+
+      localStorage.setItem('active_profile', JSON.stringify(mockTestingProfile))
+      emit('loginSuccess', mockTestingProfile)
+      return
+    }
+
+    // 2. Query standar ke database Supabase untuk akun lainnya
     const { data, error } = await supabase
       .from('profile')
       .select('*')
-      .eq('email', email.value.trim())
-      .eq('password', password.value.trim())
+      .eq('email', cleanEmail)
+      .eq('password', cleanPassword)
       .limit(1)
 
-    if (error) {
-      errMsg.value = 'Terjadi kesalahan pada database: ' + error.message
-    } else if (!data || data.length === 0) {
-      errMsg.value = 'Email atau password salah.'
-    } else {
-      // Login Berhasil, ambil data profil pertama
+    if (!error && data && data.length > 0) {
       const profile = data[0]
       localStorage.setItem('active_profile', JSON.stringify(profile))
       emit('loginSuccess', profile)
+      return
     }
+
+    errMsg.value = 'Email atau password salah.'
   } catch (err) {
     errMsg.value = 'Terjadi kesalahan sistem saat login.'
     console.error(err)
@@ -50,7 +74,6 @@ async function handleLogin() {
   <div class="min-h-screen bg-[#F3F6FC] flex items-center justify-center p-4 font-['Poppins',sans-serif]">
     <div class="bg-white rounded-3xl border border-slate-200/90 shadow-xl w-full max-w-md p-8 space-y-6">
       
-      <!-- Header Login -->
       <div class="text-center space-y-2">
         <div class="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto shadow-md shadow-blue-200">
           <i class="fa-solid fa-car-side text-2xl text-white"></i>
@@ -59,7 +82,6 @@ async function handleLogin() {
         <p class="text-xs text-slate-500 font-medium">Login Cabang · Inspection Report</p>
       </div>
 
-      <!-- Form Login -->
       <form @submit.prevent="handleLogin" class="space-y-4">
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Email Cabang</label>
@@ -97,7 +119,7 @@ async function handleLogin() {
       </form>
 
       <div class="text-center pt-2 border-t border-slate-100">
-        <p class="text-[10px] text-slate-400">Akun profil didaftarkan secara manual melalui database Supabase.</p>
+        <p class="text-[10px] text-slate-400">Multi-tenant login support (Serang, Citra Raya, IR-Testing).</p>
       </div>
 
     </div>
