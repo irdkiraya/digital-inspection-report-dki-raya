@@ -13,7 +13,7 @@ const blank = () => ({
   tanggal: new Date().toISOString().slice(0, 10), 
   nama: '', 
   advisor: '', 
-  namaMekanik: '', // 1 Inputan Utama Mekanik yang otomatis masuk ke Excel/Rekap & tidak tercetak di PDF
+  namaMekanik: '', 
   telp: '', 
   polisi: '', 
   rencana: '', 
@@ -24,7 +24,7 @@ const f = reactive(blank())
 const advisorsList = ref([])
 const message = ref({ text: '', type: '' })
 const loading = ref(false)
-const isSerangBranch = ref(false)
+const isSerangOrTesting = ref(false)
 
 const getActiveProfileId = () => {
   try {
@@ -37,22 +37,32 @@ const getActiveProfileId = () => {
 
 onMounted(async () => {
   let currentProfileName = ''
+  let currentEmail = ''
   
   try {
     const profile = JSON.parse(localStorage.getItem('active_profile'))
-    currentProfileName = profile ? (profile.nama || profile.branch_name || '').toLowerCase() : ''
+    if (profile) {
+      currentProfileName = (profile.nama || profile.branch_name || '').toLowerCase()
+      currentEmail = (profile.email || '').toLowerCase()
+    }
   } catch {
     currentProfileName = ''
+    currentEmail = ''
   }
 
-  isSerangBranch.value = currentProfileName.includes('serang')
+  // Membedakan 3 user/cabang secara spesifik:
+  // Serang & irtesting menggunakan konfigurasi yang sama persis
+  // Citra Raya menggunakan konfigurasi terpisah
+  isSerangOrTesting.value = currentProfileName.includes('serang') || currentEmail === 'irtestingdki@gmail.com'
 
-  if (isSerangBranch.value) {
+  if (isSerangOrTesting.value) {
+    // Pengaturan khusus untuk Cabang Serang & Akun Irtesting
     advisorsList.value = [
       { nama: 'Firman Faturahman' },
       { nama: 'Ira Mutiara S. Situmorang' }
     ]
   } else {
+    // Pengaturan untuk Cabang Citra Raya & cabang lainnya
     advisorsList.value = [
       { nama: 'Fatha Arighi' },
       { nama: 'Achmad Firdaus' },
@@ -67,7 +77,6 @@ watch(() => props.initialData, (val) => {
     f.tanggal = val.tanggal
     f.nama = val.nama
     f.advisor = val.advisor
-    // Menyatukan mapping data mekanik agar aman dari data lama manapun
     f.namaMekanik = val.namaMekanik || val.catatanMekanik || ''
     f.telp = val.telp
     f.polisi = val.polisi
@@ -103,7 +112,6 @@ async function save() {
 
   loading.value = true
 
-  // Sinkronisasi otomatis ke catatanMekanik agar terekap sempurna di Excel & Export tanpa cetak PDF
   const payloadData = { 
     ...f, 
     catatanMekanik: f.namaMekanik, 
@@ -160,7 +168,6 @@ async function save() {
           </select>
         </div>
         
-        <!-- 1 INPUTAN TUNGGAL MEKANIK (Masuk Rekap Excel / Export, Tidak Masuk PDF) -->
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1">
             <i class="fa-solid fa-user-gear text-blue-600 text-[10px]"></i> Nama Mekanik (Rekap Excel)
@@ -213,10 +220,10 @@ async function save() {
           <p class="text-[11px] font-bold text-slate-500 uppercase">Catatan</p>
           <p class="text-xs text-slate-700 mt-0.5 font-medium">
             Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 
-            <span class="font-bold text-blue-600">{{ isSerangBranch ? '10%' : '15%' }}</span>.
+            <span class="font-bold text-blue-600">{{ isSerangOrTesting ? '10%' : '15%' }}</span>.
           </p>
 
-          <div v-if="isSerangBranch" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
+          <div v-if="isSerangOrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
             <p class="text-slate-900 font-bold">Rekening BCA Cabang Serang:</p>
             <p>An. PT. Astra International Tbk</p>
             <p class="text-blue-600 font-bold">No Rekening: 093.302.2533</p>
