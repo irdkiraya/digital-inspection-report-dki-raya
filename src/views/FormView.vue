@@ -25,8 +25,9 @@ const advisorsList = ref([])
 const message = ref({ text: '', type: '' })
 const loading = ref(false)
 const isSerangOrTesting = ref(false)
+const isIrTesting = ref(false)
 
-// [PERBAIKAN]: Perkuat pengambilan ID dengan fallback properti & logging untuk debugging
+// Pengambilan ID profil dengan fallback properti & logging untuk debugging Foreign Key Supabase
 const getActiveProfileId = () => {
   try {
     const profileItem = localStorage.getItem('active_profile')
@@ -37,7 +38,6 @@ const getActiveProfileId = () => {
     const profile = JSON.parse(profileItem)
     console.log('🔍 Active Profile Data:', profile)
     
-    // Sesuaikan dengan struktur database Anda (bisa id, branch_id, atau uuid)
     return profile ? (profile.id || profile.branch_id || profile.uuid) : null
   } catch (err) {
     console.error('❌ Gagal memarsing active_profile dari localStorage:', err)
@@ -60,10 +60,16 @@ onMounted(async () => {
     currentEmail = ''
   }
 
-  // Multi-tenant: Serang & irtestingdki@gmail.com menggunakan aturan & data identik
-  isSerangOrTesting.value = currentProfileName.includes('serang') || currentEmail === 'irtestingdki@gmail.com'
+  // Deteksi khusus untuk irtestingdki@gmail.com / Cabang IR TESTING
+  isIrTesting.value = currentEmail === 'irtestingdki@gmail.com' || currentProfileName.includes('ir testing') || currentProfileName.includes('testing')
+  isSerangOrTesting.value = currentProfileName.includes('serang') || isIrTesting.value
 
-  if (isSerangOrTesting.value) {
+  if (isIrTesting.value) {
+    advisorsList.value = [
+      { nama: 'Testing1' },
+      { nama: 'Testing2' }
+    ]
+  } else if (currentProfileName.includes('serang')) {
     advisorsList.value = [
       { nama: 'Firman Faturahman' },
       { nama: 'Ira Mutiara S. Situmorang' }
@@ -302,7 +308,14 @@ async function save() {
             <span class="font-bold text-blue-600">{{ isSerangOrTesting ? '10%' : '15%' }}</span>.
           </p>
 
-          <div v-if="isSerangOrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
+          <!-- Informasi Rekening & Alamat untuk IR TESTING / Serang -->
+          <div v-if="isIrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
+            <p class="text-slate-900 font-bold">Rekening Cabang IR TESTING:</p>
+            <p>An. PT. Astra International</p>
+            <p class="text-blue-600 font-bold">No Rekening: 12345678</p>
+            <p class="text-[10px] text-slate-500">Alamat: Jl Testing Raya</p>
+          </div>
+          <div v-else-if="isSerangOrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
             <p class="text-slate-900 font-bold">Rekening BCA Cabang Serang:</p>
             <p>An. PT. Astra International Tbk</p>
             <p class="text-blue-600 font-bold">No Rekening: 093.302.2533</p>
