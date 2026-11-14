@@ -21,37 +21,7 @@ async function handleLogin() {
   const cleanPassword = password.value.trim()
 
   try {
-    // 1. Bypass khusus untuk akun testing: Menggunakan profil/referensi Cabang Serang agar data menyatu
-    if (cleanEmail === 'irtestingdki@gmail.com' && cleanPassword === 'Testing123') {
-      const { data: serangProfile, error: profileErr } = await supabase
-        .from('profile')
-        .select('*')
-        .ilike('nama', '%serang%')
-        .limit(1)
-
-      if (profileErr || !serangProfile || serangProfile.length === 0) {
-        errMsg.value = 'Gagal memuat profil referensi cabang Serang dari database.'
-        loading.value = false
-        return
-      }
-
-      const baseProfile = serangProfile[0]
-
-      const mockTestingProfile = {
-        id: baseProfile.id, 
-        email: 'irtestingdki@gmail.com',
-        nama: 'IR TESTING',
-        alamat: 'Jl. Testing Raya',
-        kota: baseProfile.kota || 'Serang',
-        telp: baseProfile.telp || '085173455151'
-      }
-
-      localStorage.setItem('active_profile', JSON.stringify(mockTestingProfile))
-      emit('loginSuccess', mockTestingProfile)
-      return
-    }
-
-    // 2. Query standar ke database Supabase untuk akun lainnya (Serang, Citra Raya, dll)
+    // Query standar ke database Supabase untuk SEMUA akun (Serang, Citra Raya, IR Testing)
     const { data, error } = await supabase
       .from('profile')
       .select('*')
