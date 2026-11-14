@@ -19,10 +19,20 @@ const getActiveProfileId = () => {
     const profileItem = localStorage.getItem('active_profile')
     const profile = profileItem ? JSON.parse(profileItem) : null
     
-    // Debugging untuk memastikan ID akun mana yang sedang aktif dibaca browser
     console.log('🔍 [ListView] Profil Aktif di Browser:', profile)
     
-    return profile ? profile.id : null
+    if (!profile) return null
+
+    let validId = profile.id || profile.branch_id || profile.uuid
+    const email = (profile.email || '').toLowerCase()
+    const nama = (profile.nama || '').toLowerCase()
+
+    // Sinkronisasi UUID fallback testing dengan LoginView
+    if (!validId && (email === 'irtestingdki@gmail.com' || nama.includes('testing') || nama.includes('ir testing'))) {
+      validId = "99999999-9999-9999-9999-999999999999"
+    }
+    
+    return validId
   } catch (err) {
     console.error('❌ Gagal membaca active_profile:', err)
     return null
@@ -55,7 +65,7 @@ async function loadData() {
           harga
         )
       `, { count: 'exact' })
-      .eq('id_profile', profileId) // Filter ketat berdasarkan ID profil cabang yang login
+      .eq('id_profile', profileId)
       .order('tanggal', { ascending: false })
 
     if (startDate.value) {
@@ -129,7 +139,6 @@ function handleFilterChange() {
       </button>
     </div>
 
-    <!-- FILTER & PENCARIAN -->
     <div class="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center gap-3">
       <div class="relative flex-1 w-full">
         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-500 text-xs"></i>
@@ -162,12 +171,10 @@ function handleFilterChange() {
       </span>
     </div>
 
-    <!-- LOADING STATE -->
     <div v-if="loading" class="text-center py-12 text-slate-400 text-xs flex items-center justify-center gap-2">
       <i class="fa-solid fa-spinner animate-spin text-blue-600"></i> Memuat data dari database...
     </div>
 
-    <!-- DESKTOP TABLE WRAPPER -->
     <div v-else class="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden hidden sm:block">
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
@@ -229,7 +236,6 @@ function handleFilterChange() {
       </div>
     </div>
 
-    <!-- MOBILE CARDS VIEW -->
     <div v-if="!loading" class="sm:hidden space-y-4">
       <div 
         v-for="r in filtered" 
@@ -275,7 +281,6 @@ function handleFilterChange() {
       </div>
     </div>
 
-    <!-- PAGINATION CONTROLS -->
     <div class="flex items-center justify-between pt-2">
       <button 
         @click="prevPage" 

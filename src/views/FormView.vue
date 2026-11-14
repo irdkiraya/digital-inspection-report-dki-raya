@@ -9,13 +9,12 @@ const emit = defineEmits(['save'])
 let k = 0
 const row = (jasa = '', qty = 1, harga = 0) => ({ k: ++k, jasa, qty, harga })
 
-// Ditambahkan id: null agar saat data baru dibuat/direset, ID lama tidak tersisa (mencegah error 409 Conflict)
 const blank = () => ({ 
   id: null, 
   tanggal: new Date().toISOString().slice(0, 10), 
   nama: '', 
   advisor: '', 
-  namaMekanik: '', // 1 Inputan Utama Mekanik yang otomatis masuk ke Excel/Rekap & tidak tercetak di PDF
+  namaMekanik: '', 
   telp: '', 
   polisi: '', 
   rencana: '', 
@@ -29,7 +28,7 @@ const loading = ref(false)
 const isSerangOrTesting = ref(false)
 const isIrTesting = ref(false)
 
-// Fungsi pengambilan ID profil yang disempurnakan dengan auto-bypass/fallback aman untuk akun testing
+// [PERBAIKAN UTAMA] Mengamankan ID Profil agar IR Testing punya UUID unik sendiri dan tidak nyasar ke Serang
 const getActiveProfileId = () => {
   try {
     const profileItem = localStorage.getItem('active_profile')
@@ -37,14 +36,14 @@ const getActiveProfileId = () => {
     
     console.log('🔍 Active Profile Data:', profile)
     
-    // Ambil ID apa pun yang tersedia dari objek profil aktif
     let validId = profile.id || profile.branch_id || profile.uuid
-    
-    // Jika untuk akun testing / irtestingdki ID-nya masih kosong atau tidak terbaca, 
-    // kita berikan mekanisme penanganan agar tidak langsung error foreign key kosong
-    if (!validId && ((profile.email || '').toLowerCase() === 'irtestingdki@gmail.com' || (profile.nama || '').toLowerCase().includes('testing'))) {
-      console.warn('⚠️ Menggunakan fallback ID darurat untuk akun testing')
-      validId = profile.id || "00000000-0000-0000-0000-000000000000" 
+    const email = (profile.email || '').toLowerCase()
+    const nama = (profile.nama || '').toLowerCase()
+
+    // Jika ini akun testing/irtesting, berikan UUID konsisten khusus testing agar berdiri sendiri di DB
+    if (!validId && (email === 'irtestingdki@gmail.com' || nama.includes('testing') || nama.includes('ir testing'))) {
+      console.warn('⚠️ Menggunakan ID khusus terisolasi untuk Cabang IR Testing')
+      validId = "99999999-9999-9999-9999-999999999999" // UUID khusus testing agar terisolasi dari Serang
     }
     
     return validId
@@ -69,7 +68,6 @@ onMounted(async () => {
     currentEmail = ''
   }
 
-  // Deteksi khusus untuk irtestingdki@gmail.com / Cabang IR TESTING
   isIrTesting.value = currentEmail === 'irtestingdki@gmail.com' || currentProfileName.includes('ir testing') || currentProfileName.includes('testing')
   isSerangOrTesting.value = currentProfileName.includes('serang') || isIrTesting.value
 
@@ -98,7 +96,6 @@ watch(() => props.initialData, (val) => {
     f.tanggal = val.tanggal
     f.nama = val.nama
     f.advisor = val.advisor
-    // Menyatukan mapping data mekanik agar aman dari data lama manapun
     f.namaMekanik = val.namaMekanik || val.catatanMekanik || ''
     f.telp = val.telp
     f.polisi = val.polisi
@@ -134,7 +131,6 @@ async function save() {
 
   loading.value = true
 
-  // Sinkronisasi otomatis ke catatanMekanik agar terekap sempurna di Excel & Export tanpa cetak PDF
   const payloadData = { 
     ...f, 
     catatanMekanik: f.namaMekanik, 
@@ -208,7 +204,6 @@ async function save() {
           </select>
         </div>
         
-        <!-- 1 INPUTAN TUNGGAL MEKANIK (Masuk Rekap Excel / Export, Tidak Masuk PDF) -->
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1">
             <i class="fa-solid fa-user-gear text-blue-600 text-[10px]"></i> Nama Mekanik (Rekap Excel)
@@ -317,14 +312,12 @@ async function save() {
             <span class="font-bold text-blue-600">{{ isSerangOrTesting ? '10%' : '15%' }}</span>.
           </p>
 
-          <!-- Informasi Rekening & Alamat untuk IR TESTING -->
           <div v-if="isIrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
             <p class="text-slate-900 font-bold">Rekening Cabang IR TESTING:</p>
             <p>An. PT. Astra International</p>
             <p class="text-blue-600 font-bold">No Rekening: 12345678</p>
             <p class="text-[10px] text-slate-500">Alamat: Jl Testing Raya</p>
           </div>
-          <!-- Informasi Rekening untuk Cabang Serang -->
           <div v-else-if="isSerangOrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
             <p class="text-slate-900 font-bold">Rekening BCA Cabang Serang:</p>
             <p>An. PT. Astra International Tbk</p>
