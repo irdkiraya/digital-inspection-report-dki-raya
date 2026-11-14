@@ -21,7 +21,7 @@ async function handleLogin() {
   const cleanPassword = password.value.trim()
 
   try {
-    // 1. Bypass khusus untuk akun testing: Ambil ID ASLI dari Cabang Serang di database Supabase agar lolos Foreign Key
+    // 1. Bypass khusus untuk akun testing: Menggunakan profil/referensi Cabang Serang agar data menyatu
     if (cleanEmail === 'irtestingdki@gmail.com' && cleanPassword === 'Testing123') {
       const { data: serangProfile, error: profileErr } = await supabase
         .from('profile')
@@ -38,7 +38,6 @@ async function handleLogin() {
       const baseProfile = serangProfile[0]
 
       const mockTestingProfile = {
-        // [KUNCI UTAMA]: Gunakan ID asli dari database Supabase milik Cabang Serang
         id: baseProfile.id, 
         email: 'irtestingdki@gmail.com',
         nama: 'IR TESTING',
@@ -52,7 +51,7 @@ async function handleLogin() {
       return
     }
 
-    // 2. Query standar ke database Supabase untuk akun lainnya
+    // 2. Query standar ke database Supabase untuk akun lainnya (Serang, Citra Raya, dll)
     const { data, error } = await supabase
       .from('profile')
       .select('*')
