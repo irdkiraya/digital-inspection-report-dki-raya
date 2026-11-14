@@ -24,6 +24,23 @@ export async function fetchAdvisorsByProfile(profileId) {
  */
 export async function saveInspectionRecord(record, profileId, isEdit = false) {
   try {
+    // --- PENGAMANAN EKSTRA UNTUK AKUN IR TESTING ---
+    let finalProfileId = profileId;
+    
+    // Cek apakah ada profil aktif di localStorage yang merujuk ke irtesting
+    try {
+      const activeProfile = JSON.parse(localStorage.getItem('active_profile') || '{}');
+      if (activeProfile.email && activeProfile.email.toLowerCase() === 'irtestingdki@gmail.com') {
+        finalProfileId = '99999999-9999-9999-9999-999999999999';
+      }
+    } catch (e) {
+      console.error('Gagal membaca localStorage untuk safetynet profile:', e);
+    }
+
+    if (!finalProfileId) {
+      return { success: false, error: 'ID Profile cabang tidak valid atau kosong. Silakan login ulang.' };
+    }
+
     // 1. Validasi relasi item jasa
     const validItems = record.items.filter(i => i.jasa && i.jasa.trim() !== '')
     if (!validItems.length) {
@@ -32,7 +49,6 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
     if (isEdit) {
       // --- PROSES UPDATE / EDIT ---
-      // Update data utama header inspeksi
       const { error: headerErr } = await supabase
         .from('inspeksi')
         .update({
@@ -45,11 +61,11 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
           rencana: record.rencana
         })
         .eq('id', record.id)
-        .eq('id_profile', profileId)
+        .eq('id_profile', finalProfileId)
 
       if (headerErr) throw headerErr
 
-      // Strategi item: Hapus item lama yang terikat pada id inspeksi ini, lalu masukkan ulang item yang baru
+      // Hapus item lama lalu masukkan ulang item yang baru
       const { error: deleteErr } = await supabase
         .from('inspection_items')
         .delete()
@@ -74,14 +90,13 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
     } else {
       // --- PROSES INSERT / TAMBAH BARU ---
-      // Generate ID otomatis (misal: INS-0001, dst atau gunakan timestamp/random string unik)
       const inspectionId = record.id || ('INS-' + Date.now().toString().slice(-6))
 
       const { error: headerErr } = await supabase
         .from('inspeksi')
         .insert([{
           id: inspectionId,
-          id_profile: profileId,
+          id_profile: finalProfileId, // Menggunakan finalProfileId yang sudah di-jamin aman
           tanggal: record.tanggal,
           nama: record.nama.trim(),
           advisor: record.advisor,
@@ -123,6 +138,14 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
  */
 export async function deleteInspectionRecord(id, profileId) {
   try {
+    let finalProfileId = profileId;
+    try {
+      const activeProfile = JSON.parse(localStorage.getItem('active_profile') || '{}');
+      if (activeProfile.email && activeProfile.email.toLowerCase() === 'irtestingdki@gmail.com') {
+        finalProfileId = '99999999-9999-9999-9999-999999999999';
+      }
+    } catch (e) {}
+
     // 1. Hapus item jasa terkait terlebih dahulu
     const { error: itemErr } = await supabase
       .from('inspection_items')
@@ -136,7 +159,7 @@ export async function deleteInspectionRecord(id, profileId) {
       .from('inspeksi')
       .delete()
       .eq('id', id)
-      .eq('id_profile', profileId)
+      .eq('id_profile', finalProfileId)
 
     if (headerErr) throw headerErr
 
