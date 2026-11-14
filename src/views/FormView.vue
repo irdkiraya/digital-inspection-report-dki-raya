@@ -27,21 +27,15 @@ const loading = ref(false)
 const isSerangOrTesting = ref(false)
 const isIrTesting = ref(false)
 
-// Pengambilan ID profil dengan fallback & auto-mapping khusus irtestingdki@gmail.com agar lolos Foreign Key Supabase
 const getActiveProfileId = () => {
   try {
     const profileItem = localStorage.getItem('active_profile')
-    let profile = profileItem ? JSON.parse(profileItem) : {}
-    
-    console.log('🔍 Active Profile Data:', profile)
-    
-    const email = (profile.email || '').toLowerCase()
-    const nama = (profile.nama || profile.branch_name || '').toLowerCase()
-
-    // Jika akun irtestingdki / testing, gunakan fallback ID valid dari cabang Serang/lainnya yang ada di database
-    if (email === 'irtestingdki@gmail.com' || nama.includes('testing') || nama.includes('ir testing')) {
-      return profile.id || profile.branch_id || profile.uuid || "id-cabang-serang-atau-uuid-valid-di-supabase"
+    if (!profileItem) {
+      console.warn('⚠️ Warning: localStorage "active_profile" tidak ditemukan.')
+      return null
     }
+    const profile = JSON.parse(profileItem)
+    console.log('🔍 Active Profile Data:', profile)
     
     return profile ? (profile.id || profile.branch_id || profile.uuid) : null
   } catch (err) {
@@ -71,8 +65,8 @@ onMounted(async () => {
 
   if (isIrTesting.value) {
     advisorsList.value = [
-      { nama: 'Testing1' },
-      { nama: 'Testing2' }
+      { nama: 'Testing1', hp: '123456' },
+      { nama: 'Testing2', hp: '78901112' }
     ]
   } else if (currentProfileName.includes('serang')) {
     advisorsList.value = [
@@ -124,7 +118,7 @@ async function save() {
 
   const profileId = getActiveProfileId()
   if (!profileId) {
-    message.value = { text: 'Sesi cabang tidak ditemukan atau ID profil kosong. Silakan login ulang.', type: 'error' }
+    message.value = { text: 'Sesi cabang tidak ditemukan. Silakan login ulang.', type: 'error' }
     return
   }
 
@@ -313,13 +307,14 @@ async function save() {
             <span class="font-bold text-blue-600">{{ isSerangOrTesting ? '10%' : '15%' }}</span>.
           </p>
 
-          <!-- Informasi Rekening & Alamat untuk IR TESTING / Serang -->
+          <!-- Informasi Rekening & Alamat untuk IR TESTING -->
           <div v-if="isIrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
             <p class="text-slate-900 font-bold">Rekening Cabang IR TESTING:</p>
             <p>An. PT. Astra International</p>
             <p class="text-blue-600 font-bold">No Rekening: 12345678</p>
             <p class="text-[10px] text-slate-500">Alamat: Jl Testing Raya</p>
           </div>
+          <!-- Informasi Rekening untuk Cabang Serang -->
           <div v-else-if="isSerangOrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
             <p class="text-slate-900 font-bold">Rekening BCA Cabang Serang:</p>
             <p>An. PT. Astra International Tbk</p>
@@ -337,4 +332,22 @@ async function save() {
           type="button" 
           @click="save" 
           :disabled="loading" 
-          class="px-5
+          class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-sm shadow-blue-200 flex items-center gap-2 disabled:opacity-50"
+        >
+          <i v-if="loading" class="fa-solid fa-spinner animate-spin text-xs"></i>
+          <i v-else class="fa-solid fa-floppy-disk text-xs"></i>
+          <span>{{ loading ? 'Menyimpan...' : (initialData ? 'Perbarui Data' : 'Simpan Data') }}</span>
+        </button>
+        <button 
+          type="button" 
+          @click="reset" 
+          :disabled="loading" 
+          class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition shadow-2xs"
+        >
+          Reset Form
+        </button>
+      </div>
+
+    </div>
+  </div>
+</template>
