@@ -28,25 +28,18 @@ const loading = ref(false)
 const isSerangOrTesting = ref(false)
 const isIrTesting = ref(false)
 
-// [PERBAIKAN UTAMA] Mengamankan ID Profil agar IR Testing punya UUID unik sendiri dan tidak nyasar ke Serang
+// [REVISI UTAMA] Mengambil ID Profil secara murni langsung dari active_profile yang tersimpan di localStorage
 const getActiveProfileId = () => {
   try {
     const profileItem = localStorage.getItem('active_profile')
-    let profile = profileItem ? JSON.parse(profileItem) : {}
+    if (!profileItem) return null
     
+    const profile = JSON.parse(profileItem)
     console.log('🔍 Active Profile Data:', profile)
     
-    let validId = profile.id || profile.branch_id || profile.uuid
-    const email = (profile.email || '').toLowerCase()
-    const nama = (profile.nama || '').toLowerCase()
-
-    // Jika ini akun testing/irtesting, berikan UUID konsisten khusus testing agar berdiri sendiri di DB
-    if (!validId && (email === 'irtestingdki@gmail.com' || nama.includes('testing') || nama.includes('ir testing'))) {
-      console.warn('⚠️ Menggunakan ID khusus terisolasi untuk Cabang IR Testing')
-      validId = "99999999-9999-9999-9999-999999999999" // UUID khusus testing agar terisolasi dari Serang
-    }
-    
-    return validId
+    // Ambil ID secara presisi dari data profile yang sedang aktif login
+    const validId = profile.id || profile.branch_id || profile.uuid
+    return validId || null
   } catch (err) {
     console.error('❌ Gagal memarsing active_profile dari localStorage:', err)
     return null
@@ -125,7 +118,7 @@ async function save() {
 
   const profileId = getActiveProfileId()
   if (!profileId) {
-    message.value = { text: 'Sesi cabang tidak ditemukan. Silakan login ulang.', type: 'error' }
+    message.value = { text: 'Sesi cabang tidak ditemukan atau ID profil kosong. Silakan Logout dan Login ulang.', type: 'error' }
     return
   }
 
