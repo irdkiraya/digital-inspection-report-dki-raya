@@ -9,7 +9,9 @@ const emit = defineEmits(['save'])
 let k = 0
 const row = (jasa = '', qty = 1, harga = 0) => ({ k: ++k, jasa, qty, harga })
 
+// Ditambahkan id: null agar saat data baru dibuat/direset, ID lama tidak tersisa (mencegah error 409 Conflict)
 const blank = () => ({ 
+  id: null, 
   tanggal: new Date().toISOString().slice(0, 10), 
   nama: '', 
   advisor: '', 
