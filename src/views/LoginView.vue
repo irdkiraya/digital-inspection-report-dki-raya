@@ -21,22 +21,28 @@ async function handleLogin() {
   const cleanPassword = password.value.trim()
 
   try {
-    // 1. Bypass/Hardcoded khusus untuk akun testing dengan ID TERISOLASI (Tidak sama dengan Serang)
+    // 1. Bypass khusus untuk akun testing: Ambil ID ASLI dari Cabang Serang di database Supabase agar lolos Foreign Key
     if (cleanEmail === 'irtestingdki@gmail.com' && cleanPassword === 'Testing123') {
-      const { data: serangProfile } = await supabase
+      const { data: serangProfile, error: profileErr } = await supabase
         .from('profile')
         .select('*')
         .ilike('nama', '%serang%')
         .limit(1)
 
-      const baseProfile = serangProfile && serangProfile.length ? serangProfile[0] : {}
+      if (profileErr || !serangProfile || serangProfile.length === 0) {
+        errMsg.value = 'Gagal memuat profil referensi cabang Serang dari database.'
+        loading.value = false
+        return
+      }
+
+      const baseProfile = serangProfile[0]
 
       const mockTestingProfile = {
-        // PERBAIKAN UTAMA: Gunakan ID unik khusus testing agar data tidak tercampur dengan Serang
-        id: 'ir-testing-profile-unique-id-999', 
+        // [KUNCI UTAMA]: Gunakan ID asli dari database Supabase milik Cabang Serang
+        id: baseProfile.id, 
         email: 'irtestingdki@gmail.com',
-        nama: baseProfile.nama || 'PT. ASTRA DAIHATSU SERANG (TESTING)',
-        alamat: baseProfile.alamat || 'Jl. Jend. Sudirman No.45, Panancangan, Cipocok Jaya, Kota Serang',
+        nama: 'IR TESTING',
+        alamat: 'Jl. Testing Raya',
         kota: baseProfile.kota || 'Serang',
         telp: baseProfile.telp || '085173455151'
       }
