@@ -26,11 +26,21 @@ const message = ref({ text: '', type: '' })
 const loading = ref(false)
 const isSerangOrTesting = ref(false)
 
+// [PERBAIKAN]: Perkuat pengambilan ID dengan fallback properti & logging untuk debugging
 const getActiveProfileId = () => {
   try {
-    const profile = JSON.parse(localStorage.getItem('active_profile'))
-    return profile ? profile.id : null
-  } catch {
+    const profileItem = localStorage.getItem('active_profile')
+    if (!profileItem) {
+      console.warn('⚠️ Warning: localStorage "active_profile" tidak ditemukan.')
+      return null
+    }
+    const profile = JSON.parse(profileItem)
+    console.log('🔍 Active Profile Data:', profile)
+    
+    // Sesuaikan dengan struktur database Anda (bisa id, branch_id, atau uuid)
+    return profile ? (profile.id || profile.branch_id || profile.uuid) : null
+  } catch (err) {
+    console.error('❌ Gagal memarsing active_profile dari localStorage:', err)
     return null
   }
 }
@@ -103,7 +113,7 @@ async function save() {
 
   const profileId = getActiveProfileId()
   if (!profileId) {
-    message.value = { text: 'Sesi cabang tidak ditemukan. Silakan login ulang.', type: 'error' }
+    message.value = { text: 'Sesi cabang tidak ditemukan atau ID profil kosong. Silakan login ulang.', type: 'error' }
     return
   }
 
