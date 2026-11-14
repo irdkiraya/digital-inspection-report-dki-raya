@@ -16,16 +16,25 @@ const totalRowsCount = ref(0)
 
 const getActiveProfileId = () => {
   try {
-    const profile = JSON.parse(localStorage.getItem('active_profile'))
+    const profileItem = localStorage.getItem('active_profile')
+    const profile = profileItem ? JSON.parse(profileItem) : null
+    
+    // Debugging untuk memastikan ID akun mana yang sedang aktif dibaca browser
+    console.log('🔍 [ListView] Profil Aktif di Browser:', profile)
+    
     return profile ? profile.id : null
-  } catch {
+  } catch (err) {
+    console.error('❌ Gagal membaca active_profile:', err)
     return null
   }
 }
 
 async function loadData() {
   const profileId = getActiveProfileId()
-  if (!profileId) return
+  if (!profileId) {
+    console.warn('⚠️ loadData dibatalkan: profileId tidak ditemukan.')
+    return
+  }
 
   loading.value = true
   try {
@@ -46,7 +55,7 @@ async function loadData() {
           harga
         )
       `, { count: 'exact' })
-      .eq('id_profile', profileId)
+      .eq('id_profile', profileId) // Filter ketat berdasarkan ID profil cabang yang login
       .order('tanggal', { ascending: false })
 
     if (startDate.value) {
