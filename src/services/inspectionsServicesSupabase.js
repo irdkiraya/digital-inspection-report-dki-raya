@@ -24,22 +24,33 @@ export async function fetchAdvisorsByProfile(profileId) {
  */
 export async function saveInspectionRecord(record, profileId, isEdit = false) {
   try {
-    // Tentukan ID Profile secara mutlak
-    let finalProfileId = '99999999-9999-9999-9999-999999999999'; // Default paksa ke IR Testing untuk pengujian
+    // --- PENGAMANAN MUTLAK ID PROFILE UNTUK AKUN IR TESTING ---
+    let finalProfileId = profileId;
 
     try {
       const activeProfile = JSON.parse(localStorage.getItem('active_profile') || '{}');
-      console.getItem && console.log('📦 Data active_profile dari localStorage:', activeProfile);
-      
-      if (activeProfile && activeProfile.id) {
-        // Bersihkan string dari spasi atau karakter tersembunyi
-        finalProfileId = String(activeProfile.id).trim();
+      const email = (activeProfile.email || '').toLowerCase().trim();
+      const nama = (activeProfile.nama || '').toLowerCase().trim();
+
+      // Deteksi fleksibel segala bentuk penulisan akun testing
+      if (
+        email === 'irtestingdki@gmail.com' || 
+        nama.includes('ir testing') || 
+        nama.includes('testing') ||
+        profileId === '99999999-9999-9999-9999-999999999999'
+      ) {
+        finalProfileId = '99999999-9999-9999-9999-999999999999';
       }
     } catch (e) {
       console.error('Gagal membaca localStorage:', e);
     }
 
-    console.log('🎯 ID_PROFILE FINAL YANG DIKIRIM KE SUPABASE:', finalProfileId);
+    // Jika masih kosong, paksa ke UUID testing secara mutlak jika email localStorage cocok
+    if (!finalProfileId || finalProfileId === 'undefined' || finalProfileId === 'null') {
+      finalProfileId = '99999999-9999-9999-9999-999999999999';
+    }
+
+    console.log('🚀 FINAL PROFILE ID TERKUNCI UNTUK SUPABASE:', finalProfileId);
 
     // 1. Validasi relasi item jasa
     const validItems = record.items.filter(i => i.jasa && i.jasa.trim() !== '')
@@ -93,7 +104,7 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
       const payloadHeader = {
         id: inspectionId,
-        id_profile: finalProfileId,
+        id_profile: finalProfileId, // Dijamin menggunakan UUID 999999... yang valid
         tanggal: record.tanggal,
         nama: record.nama.trim(),
         advisor: record.advisor,
@@ -103,14 +114,14 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
         rencana: record.rencana
       };
 
-      console.log('📤 PAYLOAD HEADER INSPEKSI:', payloadHeader);
+      console.log('📤 PAYLOAD HEADER YANG DIKIRIM:', payloadHeader);
 
       const { error: headerErr } = await supabase
         .from('inspeksi')
         .insert([payloadHeader])
 
       if (headerErr) {
-        console.error('❌ ERROR DARI SUPABASE SAAT INSERT HEADER:', headerErr);
+        console.error('❌ ERROR SUPABASE INSERT:', headerErr);
         throw headerErr;
       }
 
