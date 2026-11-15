@@ -100,7 +100,8 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
     } else {
       // --- PROSES INSERT / TAMBAH BARU ---
-      const inspectionId = record.id || ('INS-' + Date.now().toString().slice(-6))
+      // Menggunakan crypto.randomUUID() agar format ID sesuai dengan tipe kolom UUID di database
+      const inspectionId = record.id || crypto.randomUUID()
 
       const payloadHeader = {
         id: inspectionId,
@@ -138,7 +139,7 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
       if (itemsErr) throw itemsErr
 
-      return { success: true, message: `Laporan inspeksi baru (${inspectionId}) berhasil disimpan ke database.` }
+      return { success: true, message: `Laporan inspeksi baru berhasil disimpan ke database.` }
     }
 
   } catch (err) {
