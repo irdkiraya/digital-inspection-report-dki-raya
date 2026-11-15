@@ -24,30 +24,28 @@ export async function fetchAdvisorsByProfile(profileId) {
  */
 export async function saveInspectionRecord(record, profileId, isEdit = false) {
   try {
-    // --- PENGAMANAN MUTLAK ID PROFILE UNTUK AKUN IR TESTING ---
-    let finalProfileId = profileId;
+    // --- PENGAMANAN MUTLAK & PAKSA UUID UNTUK AKUN IR TESTING ---
+    let finalProfileId = '99999999-9999-9999-9999-999999999999';
 
     try {
       const activeProfile = JSON.parse(localStorage.getItem('active_profile') || '{}');
       const email = (activeProfile.email || '').toLowerCase().trim();
       const nama = (activeProfile.nama || '').toLowerCase().trim();
 
-      // Deteksi fleksibel segala bentuk penulisan akun testing
+      // Jika akun testing, KUNCI mutlak ke UUID yang benar (abaikan ID lama di localStorage)
       if (
         email === 'irtestingdki@gmail.com' || 
         nama.includes('ir testing') || 
-        nama.includes('testing') ||
-        profileId === '99999999-9999-9999-9999-999999999999'
+        nama.includes('testing')
       ) {
         finalProfileId = '99999999-9999-9999-9999-999999999999';
+      } else if (activeProfile.id) {
+        finalProfileId = activeProfile.id;
+      } else if (profileId) {
+        finalProfileId = profileId;
       }
     } catch (e) {
       console.error('Gagal membaca localStorage:', e);
-    }
-
-    // Jika masih kosong, paksa ke UUID testing secara mutlak jika email localStorage cocok
-    if (!finalProfileId || finalProfileId === 'undefined' || finalProfileId === 'null') {
-      finalProfileId = '99999999-9999-9999-9999-999999999999';
     }
 
     console.log('🚀 FINAL PROFILE ID TERKUNCI UNTUK SUPABASE:', finalProfileId);
@@ -100,12 +98,11 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
     } else {
       // --- PROSES INSERT / TAMBAH BARU ---
-      // Menggunakan crypto.randomUUID() agar format ID sesuai dengan tipe kolom UUID di database
       const inspectionId = record.id || crypto.randomUUID()
 
       const payloadHeader = {
         id: inspectionId,
-        id_profile: finalProfileId, // Dijamin menggunakan UUID 999999... yang valid
+        id_profile: finalProfileId, // Dijamin menggunakan UUID 999999... yang valid secara mutlak
         tanggal: record.tanggal,
         nama: record.nama.trim(),
         advisor: record.advisor,
@@ -156,7 +153,7 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
  */
 export async function deleteInspectionRecord(id, profileId) {
   try {
-    let finalProfileId = profileId || '99999999-9999-9999-9999-999999999999';
+    let finalProfileId = '99999999-9999-9999-9999-999999999999';
 
     const { error: itemErr } = await supabase
       .from('inspection_items')
