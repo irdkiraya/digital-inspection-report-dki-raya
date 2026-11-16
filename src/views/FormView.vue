@@ -65,13 +65,21 @@ onMounted(async () => {
     currentEmail = ''
   }
 
+  // Deteksi khusus untuk Tes Sunter / irtestingdki@gmail.com
   isIrTesting.value = 
+    currentEmail === 'irtestingdki@gmail.com' ||
     currentEmail.includes('irtesting') || 
-    currentProfileName.includes('testing')
+    currentProfileName.includes('testing') ||
+    currentProfileName.includes('sunter')
 
   isSerangOrTesting.value = currentProfileName.includes('serang') || currentProfileName.includes('citra') || isIrTesting.value
 
-  if (currentProfileName.includes('citra')) {
+  if (isIrTesting.value) {
+    advisorsList.value = [
+      { nama: 'Tes 1' },
+      { nama: 'Tes 2' }
+    ]
+  } else if (currentProfileName.includes('citra')) {
     advisorsList.value = [
       { nama: 'Advisor Citra Raya 1' },
       { nama: 'Advisor Citra Raya 2' }
@@ -308,6 +316,14 @@ async function save() {
             Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 
             <span class="font-bold text-blue-600">10%</span>.
           </p>
+
+          <!-- Informasi Khusus Cabang Tes Sunter (irtestingdki@gmail.com) -->
+          <div v-if="isIrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
+            <p class="text-slate-900 font-bold">Rekening Cabang Tes Sunter:</p>
+            <p>An. PT. Astra International Tbk</p>
+            <p class="text-blue-600 font-bold">No Rekening: BCA 123456</p>
+            <p class="text-[10px] text-slate-500">Alamat: Sunter Raya</p>
+          </div>
         </div>
         <div class="text-right w-full sm:w-auto">
           <p class="text-[11px] font-bold text-slate-500 uppercase">Total Keseluruhan</p>
