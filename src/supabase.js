@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Gunakan URL Supabase asli Anda yang benar
-const supabaseUrl = 'https://pprnhxijexrmpvmzfdmv.supabase.co'
-const supabaseKey = 'SUPABASE_ANON_KEY_ANDA_DISINI' // Pastikan Anon Key Anda tetap sesuai
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://pprnhxijexrmpvmzfdmv.supabase.co'
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseKey)
