@@ -1,20 +1,19 @@
 <script setup>
 import { reactive, ref, watch, onMounted } from 'vue'
 import { rp, total } from '../utils'
-import { saveInspectionRecord } from '../services/inspectionsServicesSupabase'
+import { fetchAdvisorsByProfile, saveInspectionRecord } from '../services/inspectionsServicesSupabase'
 
 const props = defineProps({ initialData: Object })
 const emit = defineEmits(['save'])
 
 let k = 0
 const row = (jasa = '', qty = 1, harga = 0) => ({ k: ++k, jasa, qty, harga })
-
+// ✅ Ditambahkan: namaMekanik ke objek blank
 const blank = () => ({ 
-  id: null, 
   tanggal: new Date().toISOString().slice(0, 10), 
   nama: '', 
   advisor: '', 
-  namaMekanik: '', 
+  namaMekanik: '', // BARU
   telp: '', 
   polisi: '', 
   rencana: '', 
@@ -25,86 +24,32 @@ const f = reactive(blank())
 const advisorsList = ref([])
 const message = ref({ text: '', type: '' })
 const loading = ref(false)
-const isSerangOrTesting = ref(false)
-const isIrTesting = ref(false)
 
 const getActiveProfileId = () => {
   try {
-    const profileItem = localStorage.getItem('active_profile')
-    if (!profileItem) return null
-    
-    const trimmedItem = profileItem.trim()
-    if (!trimmedItem.startsWith('{') && !trimmedItem.startsWith('[')) {
-      return trimmedItem
-    }
-
-    const profile = JSON.parse(profileItem)
-    const rawId = profile.id || profile.branch_id || profile.uuid || profile.profile_id || profile.user_id || profile.uid
-    
-    if (!rawId || rawId === 'undefined' || rawId === 'null') return null
-    return String(rawId).trim()
-  } catch (err) {
-    console.error('Gagal memarsing active_profile:', err)
+    const profile = JSON.parse(localStorage.getItem('active_profile'))
+    return profile ? profile.id : null
+  } catch {
     return null
   }
 }
 
 onMounted(async () => {
-  let currentProfileName = ''
-  let currentEmail = ''
-  
-  try {
-    const profileItem = localStorage.getItem('active_profile')
-    if (profileItem) {
-      const profile = JSON.parse(profileItem)
-      currentProfileName = (profile.nama || profile.branch_name || '').toLowerCase()
-      currentEmail = (profile.email || '').toLowerCase()
-    }
-  } catch {
-    currentProfileName = ''
-    currentEmail = ''
-  }
-
-  // Deteksi khusus untuk Tes Sunter / irtestingdki@gmail.com
-  isIrTesting.value = 
-    currentEmail === 'irtestingdki@gmail.com' ||
-    currentEmail.includes('irtesting') || 
-    currentProfileName.includes('testing') ||
-    currentProfileName.includes('sunter')
-
-  isSerangOrTesting.value = currentProfileName.includes('serang') || currentProfileName.includes('citra') || isIrTesting.value
-
-  if (isIrTesting.value) {
-    advisorsList.value = [
-      { nama: 'Tes 1' },
-      { nama: 'Tes 2' }
-    ]
-  } else if (currentProfileName.includes('citra')) {
-    advisorsList.value = [
-      { nama: 'Advisor Citra Raya 1' },
-      { nama: 'Advisor Citra Raya 2' }
-    ]
-  } else if (currentProfileName.includes('serang')) {
-    advisorsList.value = [
-      { nama: 'Firman Faturahman' },
-      { nama: 'Ira Mutiara S. Situmorang' }
-    ]
-  } else {
-    advisorsList.value = [
-      { nama: 'Fatha Arighi' },
-      { nama: 'Achmad Firdaus' },
-      { nama: 'Mekanik DMS' }
-    ]
+  const profileId = getActiveProfileId()
+  if (profileId) {
+    const { data } = await fetchAdvisorsByProfile(profileId)
+    advisorsList.value = data
   }
 })
 
+// ✅ Ditambahkan: pemuatan namaMekanik saat mode edit
 watch(() => props.initialData, (val) => {
   if (val) {
     f.id = val.id
     f.tanggal = val.tanggal
     f.nama = val.nama
     f.advisor = val.advisor
-    f.namaMekanik = val.namaMekanik || val.catatanMekanik || ''
+    f.namaMekanik = val.namaMekanik || '' // BARU
     f.telp = val.telp
     f.polisi = val.polisi
     f.rencana = val.rencana
@@ -123,6 +68,7 @@ async function save() {
   message.value = { text: '', type: '' }
   const items = f.items.filter((i) => i.jasa.trim())
 
+  // Validasi tetap sama — namaMekanik opsional, ubah di sini jika wajib
   if (!f.nama.trim() || !f.polisi.trim() || !f.tanggal || !items.length) {
     message.value = { 
       text: 'Mohon lengkapi Tanggal Pemeriksaan, Nama Customer, Nomor Polisi, dan minimal satu baris Jasa/Sparepart.', 
@@ -133,19 +79,14 @@ async function save() {
 
   const profileId = getActiveProfileId()
   if (!profileId) {
-    message.value = { text: 'Sesi cabang tidak ditemukan. Silakan Logout dan Login ulang.', type: 'error' }
+    message.value = { text: 'Sesi cabang tidak ditemukan. Silakan login ulang.', type: 'error' }
     return
   }
 
   loading.value = true
 
-  const payloadData = { 
-    ...f, 
-    catatanMekanik: f.namaMekanik, 
-    items 
-  }
-
-  const result = await saveInspectionRecord(payloadData, profileId, !!props.initialData)
+  const recordPayload = { ...f, items }
+  const result = await saveInspectionRecord(recordPayload, profileId, !!props.initialData)
 
   loading.value = false
 
@@ -154,7 +95,7 @@ async function save() {
   } else {
     message.value = { text: result.message, type: 'success' }
     setTimeout(() => {
-      emit('save', payloadData)
+      emit('save', recordPayload)
     }, 1000)
   }
 }
@@ -171,11 +112,7 @@ async function save() {
 
     <div class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 md:p-8 space-y-6">
       
-      <div 
-        v-if="message.text" 
-        :class="message.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'" 
-        class="p-3.5 border rounded-2xl text-xs font-bold flex items-center gap-2.5 shadow-2xs transition-all"
-      >
+      <div v-if="message.text" :class="message.type === 'error' ? 'bg-rose-50 border-rose-200 text-rose-700' : 'bg-emerald-50 border-emerald-200 text-emerald-800'" class="p-3.5 border rounded-2xl text-xs font-bold flex items-center gap-2.5 shadow-2xs transition-all">
         <i :class="message.type === 'error' ? 'fa-solid fa-circle-exclamation text-rose-600' : 'fa-solid fa-circle-check text-emerald-600'"></i>
         <span>{{ message.text }}</span>
       </div>
@@ -183,72 +120,37 @@ async function save() {
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Tanggal Pemeriksaan</label>
-          <input 
-            type="date" 
-            v-model="f.tanggal" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 transition" 
-          />
+          <input type="date" v-model="f.tanggal" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
-
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nama Customer</label>
-          <input 
-            v-model="f.nama" 
-            placeholder="Nama customer" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
-          />
+          <input v-model="f.nama" placeholder="Nama customer" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
-
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Service Advisor</label>
-          <select 
-            v-model="f.advisor" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 transition"
-          >
+          <select v-model="f.advisor" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs">
             <option value="" disabled>-- Pilih Service Advisor --</option>
             <option v-for="(adv, idx) in advisorsList" :key="idx" :value="adv.nama">
               {{ adv.nama }}
             </option>
           </select>
         </div>
-        
+        <!-- ✅ BARIS BARU: Nama Mekanik -->
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1">
-            <i class="fa-solid fa-user-gear text-blue-600 text-[10px]"></i> Nama Mekanik
-          </label>
-          <input 
-            v-model="f.namaMekanik" 
-            placeholder="Nama mekanik yang menangani" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
-          />
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Mekanik</label>
+          <input v-model="f.namaMekanik" placeholder="Nama mekanik yang menangani" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
-
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nomor Telepon</label>
-          <input 
-            type="tel" 
-            v-model="f.telp" 
-            placeholder="08xxxxxxxxxx" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
-          />
+          <input type="tel" v-model="f.telp" placeholder="08xxxxxxxxxx" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
-
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nomor Polisi</label>
-          <input 
-            v-model="f.polisi" 
-            placeholder="B 1234 XYZ" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 uppercase placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
-          />
+          <input v-model="f.polisi" placeholder="B 1234 XYZ" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 uppercase placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
-
-        <div class="space-y-1.5 sm:col-span-2 lg:col-span-3">
+        <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Rencana Penggantian</label>
-          <input 
-            v-model="f.rencana" 
-            placeholder="Mis. 20 Nov 2026 / 5.000 km" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
-          />
+          <input v-model="f.rencana" placeholder="Mis. 20 Nov 2026 / 5.000 km" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
       </div>
 
@@ -256,74 +158,32 @@ async function save() {
         <h3 class="font-bold text-xs text-slate-900 uppercase tracking-wide">Daftar Jasa & Sparepart</h3>
 
         <div class="space-y-2.5">
-          <div 
-            v-for="(it, i) in f.items" 
-            :key="it.k" 
-            class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80"
-          >
-            <input 
-              v-model="it.jasa" 
-              placeholder="Nama Jasa / Sparepart" 
-              class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600" 
-            />
+          <div v-for="(it, i) in f.items" :key="it.k" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+            <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 hidden sm:flex">{{ i + 1 }}</span>
+            <input v-model="it.jasa" placeholder="Nama Jasa / Sparepart" class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs" />
             <div class="flex items-center gap-2">
-              <input 
-                type="number" 
-                step="any" 
-                min="0" 
-                v-model.number="it.qty" 
-                placeholder="Qty" 
-                class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600" 
-              />
-              <input 
-                type="number" 
-                min="0" 
-                v-model.number="it.harga" 
-                placeholder="Harga Satuan" 
-                class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600" 
-              />
+              <input type="number" min="1" v-model.number="it.qty" placeholder="Qty" class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" />
+              <input type="number" min="0" v-model.number="it.harga" placeholder="Harga Satuan" class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600 shadow-2xs" />
             </div>
             <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-              <span class="font-extrabold text-xs text-slate-900 w-28 text-right">
-                {{ rp((it.qty || 0) * (it.harga || 0)) }}
-              </span>
-              <button 
-                type="button" 
-                :disabled="f.items.length === 1" 
-                @click="f.items.splice(i, 1)" 
-                class="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shrink-0"
-              >
+              <span class="font-extrabold text-xs text-slate-900 w-28 text-right">{{ rp((it.qty || 0) * (it.harga || 0)) }}</span>
+              <button type="button" :disabled="f.items.length === 1" @click="f.items.splice(i, 1)" class="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shrink-0 shadow-2xs">
                 <i class="fa-solid fa-xmark text-xs"></i>
               </button>
             </div>
           </div>
         </div>
 
-        <button 
-          type="button" 
-          @click="f.items.push(row())" 
-          class="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-2"
-        >
+        <button type="button" @click="f.items.push(row())" class="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-2 shadow-2xs">
           <i class="fa-solid fa-plus text-[10px]"></i>
           <span>Tambah Baris</span>
         </button>
       </div>
 
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-200 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-200 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
         <div>
           <p class="text-[11px] font-bold text-slate-500 uppercase">Catatan</p>
-          <p class="text-xs text-slate-700 mt-0.5 font-medium">
-            Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 
-            <span class="font-bold text-blue-600">10%</span>.
-          </p>
-
-          <!-- Informasi Khusus Cabang Tes Sunter (irtestingdki@gmail.com) -->
-          <div v-if="isIrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
-            <p class="text-slate-900 font-bold">Rekening Cabang Tes Sunter:</p>
-            <p>An. PT. Astra International Tbk</p>
-            <p class="text-blue-600 font-bold">No Rekening: BCA 123456</p>
-            <p class="text-[10px] text-slate-500">Alamat: Sunter Raya</p>
-          </div>
+          <p class="text-xs text-slate-700 mt-0.5 font-medium">Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 15%.</p>
         </div>
         <div class="text-right w-full sm:w-auto">
           <p class="text-[11px] font-bold text-slate-500 uppercase">Total Keseluruhan</p>
@@ -332,26 +192,15 @@ async function save() {
       </div>
 
       <div class="flex items-center gap-3 pt-2">
-        <button 
-          type="button" 
-          @click="save" 
-          :disabled="loading" 
-          class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-sm flex items-center gap-2 disabled:opacity-50"
-        >
+        <button type="button" @click="save" :disabled="loading" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-sm shadow-blue-200 flex items-center gap-2 disabled:opacity-50">
           <i v-if="loading" class="fa-solid fa-spinner animate-spin text-xs"></i>
           <i v-else class="fa-solid fa-floppy-disk text-xs"></i>
           <span>{{ loading ? 'Menyimpan...' : (initialData ? 'Perbarui Data' : 'Simpan Data') }}</span>
         </button>
-        <button 
-          type="button" 
-          @click="reset" 
-          :disabled="loading" 
-          class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition"
-        >
+        <button type="button" @click="reset" :disabled="loading" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition shadow-2xs">
           Reset Form
         </button>
       </div>
-
     </div>
   </div>
 </template>

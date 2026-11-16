@@ -20,51 +20,22 @@ export async function fetchAdvisorsByProfile(profileId) {
 }
 
 /**
- * Menyimpan data inspeksi baru atau memperbarui data (Edit)
+ * Menyimpan data inspeksi baru atau memperbarui data yang sudah ada (Mode Edit)
  */
 export async function saveInspectionRecord(record, profileId, isEdit = false) {
   try {
-    let finalProfileId = profileId;
-
-    if (!finalProfileId || finalProfileId === 'undefined' || finalProfileId === 'null') {
-      try {
-        const activeProfile = JSON.parse(localStorage.getItem('active_profile') || '{}');
-        if (activeProfile.id) {
-          finalProfileId = activeProfile.id;
-        }
-      } catch (e) {
-        console.error('Gagal membaca localStorage:', e);
-      }
-    }
-
-    // Auto-fetch profile dari database profiles jika ID tidak valid
-    if (!finalProfileId || !String(finalProfileId).includes('-')) {
-      const activeProfile = JSON.parse(localStorage.getItem('active_profile') || '{}');
-      let targetEmail = activeProfile.email || 'irserang@gmail.com';
-
-      const { data: dbProfile, error: profileErr } = await supabase
-        .from('profiles') 
-        .select('id, email, nama, created_at')
-        .ilike('email', targetEmail)
-        .maybeSingle();
-
-      if (profileErr || !dbProfile) {
-        return { success: false, error: `Sesi profil tidak valid untuk email: ${targetEmail}` };
-      }
-      finalProfileId = dbProfile.id;
-      localStorage.setItem('active_profile', JSON.stringify(dbProfile));
-    }
-
+    // 1. Validasi relasi item jasa
     const validItems = record.items.filter(i => i.jasa && i.jasa.trim() !== '')
     if (!validItems.length) {
       return { success: false, error: 'Minimal harus ada satu baris jasa atau sparepart yang diisi.' }
     }
 
     if (isEdit) {
+      // --- PROSES UPDATE / EDIT ---
+      // Update data utama header inspeksi
       const { error: headerErr } = await supabase
         .from('inspeksi')
         .update({
-          id_profile: finalProfileId,
           tanggal: record.tanggal,
           nama: record.nama.trim(),
           advisor: record.advisor,
@@ -74,10 +45,11 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
           rencana: record.rencana
         })
         .eq('id', record.id)
-        .eq('id_profile', finalProfileId)
+        .eq('id_profile', profileId)
 
       if (headerErr) throw headerErr
 
+      // Strategi item: Hapus item lama yang terikat pada id inspeksi ini, lalu masukkan ulang item yang baru
       const { error: deleteErr } = await supabase
         .from('inspection_items')
         .delete()
@@ -101,23 +73,23 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
       return { success: true, message: `Laporan inspeksi nomor ${record.id} berhasil diperbarui.` }
 
     } else {
-      const inspectionId = record.id || crypto.randomUUID()
-
-      const payloadHeader = {
-        id: inspectionId,
-        id_profile: finalProfileId,
-        tanggal: record.tanggal,
-        nama: record.nama.trim(),
-        advisor: record.advisor,
-        telp: record.telp,
-        namaMekanik: record.namaMekanik,
-        polisi: record.polisi.toUpperCase(),
-        rencana: record.rencana
-      };
+      // --- PROSES INSERT / TAMBAH BARU ---
+      // Generate ID otomatis (misal: INS-0001, dst atau gunakan timestamp/random string unik)
+      const inspectionId = record.id || ('INS-' + Date.now().toString().slice(-6))
 
       const { error: headerErr } = await supabase
         .from('inspeksi')
-        .insert([payloadHeader])
+        .insert([{
+          id: inspectionId,
+          id_profile: profileId,
+          tanggal: record.tanggal,
+          nama: record.nama.trim(),
+          advisor: record.advisor,
+          telp: record.telp,
+          namaMekanik: record.namaMekanik,
+          polisi: record.polisi.toUpperCase(),
+          rencana: record.rencana
+        }])
 
       if (headerErr) throw headerErr
 
@@ -134,12 +106,15 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
       if (itemsErr) throw itemsErr
 
-      return { success: true, message: `Laporan inspeksi baru berhasil disimpan.` }
+      return { success: true, message: `Laporan inspeksi baru (${inspectionId}) berhasil disimpan ke database.` }
     }
 
   } catch (err) {
-    console.error('Database Error Catch:', err)
-    return { success: false, error: err.message || 'Terjadi kesalahan sistem database.' }
+    console.error('Database Error:', err)
+    return { 
+      success: false, 
+      error: err.message || 'Terjadi kesalahan saat berkomunikasi dengan server database.' 
+    }
   }
 }
 
@@ -148,14 +123,20 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
  */
 export async function deleteInspectionRecord(id, profileId) {
   try {
-    let finalProfileId = profileId;
-    if (!finalProfileId) {
-      const activeProfile = JSON.parse(localStorage.getItem('active_profile') || '{}');
-      finalProfileId = activeProfile.id;
-    }
+    // 1. Hapus item jasa terkait terlebih dahulu
+    const { error: itemErr } = await supabase
+      .from('inspection_items')
+      .delete()
+      .eq('inspeksi_id', id)
 
-    await supabase.from('inspection_items').delete().eq('inspeksi_id', id)
-    const { error: headerErr } = await supabase.from('inspeksi').delete().eq('id', id).eq('id_profile', finalProfileId)
+    if (itemErr) throw itemErr
+
+    // 2. Hapus header inspeksi utama
+    const { error: headerErr } = await supabase
+      .from('inspeksi')
+      .delete()
+      .eq('id', id)
+      .eq('id_profile', profileId)
 
     if (headerErr) throw headerErr
 

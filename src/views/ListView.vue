@@ -14,37 +14,20 @@ const currentPage = ref(1)
 const pageSize = 10
 const totalRowsCount = ref(0)
 
+// Ambil ID Cabang aktif dari localStorage
 const getActiveProfileId = () => {
   try {
-    const profileItem = localStorage.getItem('active_profile')
-    const profile = profileItem ? JSON.parse(profileItem) : null
-    
-    console.log('🔍 [ListView] Profil Aktif di Browser:', profile)
-    
-    if (!profile) return null
-
-    let validId = profile.id || profile.branch_id || profile.uuid
-    const email = (profile.email || '').toLowerCase()
-    const nama = (profile.nama || '').toLowerCase()
-
-    // Sinkronisasi UUID fallback testing dengan LoginView
-    if (!validId && (email === 'irtestingdki@gmail.com' || nama.includes('testing') || nama.includes('ir testing'))) {
-      validId = "99999999-9999-9999-9999-999999999999"
-    }
-    
-    return validId
-  } catch (err) {
-    console.error('❌ Gagal membaca active_profile:', err)
+    const profile = JSON.parse(localStorage.getItem('active_profile'))
+    return profile ? profile.id : null
+  } catch {
     return null
   }
 }
 
+// Fungsi mengambil data dari database Supabase dengan Pagination & Filter Tanggal
 async function loadData() {
   const profileId = getActiveProfileId()
-  if (!profileId) {
-    console.warn('⚠️ loadData dibatalkan: profileId tidak ditemukan.')
-    return
-  }
+  if (!profileId) return
 
   loading.value = true
   try {
@@ -68,6 +51,7 @@ async function loadData() {
       .eq('id_profile', profileId)
       .order('tanggal', { ascending: false })
 
+    // Terapkan filter rentang tanggal jika diisi
     if (startDate.value) {
       query = query.gte('tanggal', startDate.value)
     }
@@ -75,6 +59,7 @@ async function loadData() {
       query = query.lte('tanggal', endDate.value)
     }
 
+    // Pagination (Range 10 data)
     const start = (currentPage.value - 1) * pageSize
     const end = start + pageSize - 1
     query = query.range(start, end)
@@ -95,6 +80,7 @@ onMounted(() => {
   loadData()
 })
 
+// Filter pencarian teks tambahan di sisi klien
 const filtered = computed(() => {
   const s = q.value.toLowerCase().trim()
   return rows.value.filter((r) => !s || [r.nama, r.polisi, r.advisor, r.telp, r.id].join(' ').toLowerCase().includes(s))
@@ -130,6 +116,7 @@ function handleFilterChange() {
         <p class="text-xs text-slate-500 mt-0.5">Kelola data inspeksi langsung dari database cabang.</p>
       </div>
       
+      <!-- Tombol Export Excel -->
       <button 
         @click="exportExcel(rows)" 
         class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-bold text-xs transition shadow-sm flex items-center gap-2 self-start md:self-auto"
@@ -139,6 +126,7 @@ function handleFilterChange() {
       </button>
     </div>
 
+    <!-- FILTER & PENCARIAN -->
     <div class="bg-white p-4 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row items-center gap-3">
       <div class="relative flex-1 w-full">
         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-500 text-xs"></i>
@@ -150,6 +138,7 @@ function handleFilterChange() {
         />
       </div>
 
+      <!-- Filter Rentang Tanggal -->
       <div class="flex items-center gap-2 w-full md:w-auto">
         <input 
           type="date" 
@@ -171,10 +160,12 @@ function handleFilterChange() {
       </span>
     </div>
 
+    <!-- LOADING STATE -->
     <div v-if="loading" class="text-center py-12 text-slate-400 text-xs flex items-center justify-center gap-2">
       <i class="fa-solid fa-spinner animate-spin text-blue-600"></i> Memuat data dari database...
     </div>
 
+    <!-- DESKTOP TABLE WRAPPER -->
     <div v-else class="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden hidden sm:block">
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
@@ -236,6 +227,7 @@ function handleFilterChange() {
       </div>
     </div>
 
+    <!-- MOBILE CARDS VIEW -->
     <div v-if="!loading" class="sm:hidden space-y-4">
       <div 
         v-for="r in filtered" 
@@ -281,6 +273,7 @@ function handleFilterChange() {
       </div>
     </div>
 
+    <!-- PAGINATION CONTROLS -->
     <div class="flex items-center justify-between pt-2">
       <button 
         @click="prevPage" 

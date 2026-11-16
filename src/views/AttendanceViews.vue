@@ -1,18 +1,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { fetchAttendanceByDate, checkInspectionByPolisi, insertAttendance, updateAttendanceStatus } from '../services/attendanceService'
-import { supabase } from '../supabase'
 
 const emit = defineEmits(['detail'])
 
 const currentDate = ref(new Date().toISOString().slice(0, 10))
-const attendanceList = ref([])      // Data untuk tabel harian
+const attendanceList = ref([])
 const loading = ref(false)
 const showModal = ref(false)
-
-// State untuk Total Kumulatif dari awal input sampai sekarang
-const cumulativeInspectionCount = ref(0)
-const cumulativeAttendanceCount = ref(0)
 
 // State Form Pop-up
 const formPolisi = ref('')
@@ -34,46 +29,21 @@ async function loadAttendance() {
   if (!profileId) return
 
   loading.value = true
-  try {
-    // 1. Ambil data kedatangan harian untuk tabel berdasarkan tanggal yang dipilih
-    const { data } = await fetchAttendanceByDate(profileId, currentDate.value)
-    attendanceList.value = data || []
-
-    // 2. HITUNG KUMULATIF REAL-TIME: Total seluruh inspection report dari tabel 'inspeksi' untuk cabang ini
-    const { count: totalInsp } = await supabase
-      .from('inspeksi')
-      .select('*', { count: 'exact', head: true })
-      .eq('id_profile', profileId)
-    
-    cumulativeInspectionCount.value = totalInsp || 0
-
-    // 3. HITUNG KUMULATIF REAL-TIME: Total seluruh kedatangan dari tabel 'attendance' untuk cabang ini
-    const { count: totalHadir } = await supabase
-      .from('attendance')
-      .select('*', { count: 'exact', head: true })
-      .eq('id_profile', profileId)
-      .eq('status_hadir', true)
-
-    cumulativeAttendanceCount.value = totalHadir || 0
-
-  } catch (err) {
-    console.error('Gagal memuat data kedatangan:', err.message)
-  } finally {
-    loading.value = false
-  }
+  const { data } = await fetchAttendanceByDate(profileId, currentDate.value)
+  attendanceList.value = data
+  loading.value = false
 }
 
 onMounted(() => {
   loadAttendance()
 })
 
-// COMPUTED UNTUK KARTU STATISTIK (Kumulatif Real-time dari awal sampai akhir)
-const totalInspectionReport = computed(() => cumulativeInspectionCount.value)
-const totalKedatangan = computed(() => cumulativeAttendanceCount.value)
-
-const percentageKedatangan = computed(() => {
-  if (totalInspectionReport.value === 0) return 0
-  return Math.round((totalKedatangan.value / totalInspectionReport.value) * 100)
+// Hitung Statistik Persentase
+const totalBooking = computed(() => attendanceList.value.length)
+const totalHadir = computed(() => attendanceList.value.filter(i => i.status_hadir).length)
+const percentage = computed(() => {
+  if (totalBooking.value === 0) return 0
+  return Math.round((totalHadir.value / totalBooking.value) * 100)
 })
 
 // Validasi Nopol saat diketik di Pop-up untuk preview data inspeksi
@@ -89,7 +59,7 @@ async function handlePolisiInput() {
   }
 }
 
-// Simpan Kedatangan Baru
+// Simpan Kehadiran Baru
 async function handleSaveAttendance() {
   formError.value = ''
   if (!formPolisi.value.trim()) {
@@ -106,17 +76,16 @@ async function handleSaveAttendance() {
     showModal.value = false
     formPolisi.value = ''
     previewInspection.value = null
-    loadAttendance() // Muat ulang data agar akumulasi dan tabel ter-update
+    loadAttendance()
   }
 }
 
-// Toggle Checklist Kedatangan Langsung dari Tabel
-async function toggleKedatangan(item) {
+// Toggle Checklist Hadir Langsung dari Tabel
+async function toggleHadir(item) {
   const newStatus = !item.status_hadir
   const res = await updateAttendanceStatus(item.id, newStatus)
   if (res.success) {
     item.status_hadir = newStatus
-    loadAttendance() // Perbarui ulang hitungan kumulatif kedatangan di card atas
   }
 }
 
@@ -153,17 +122,17 @@ async function showDetailByPolisi(polisi) {
           class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs transition shadow-sm flex items-center gap-2"
         >
           <i class="fa-solid fa-plus text-xs"></i>
-          <span>Tambah Kedatangan</span>
+          <span>Tambah Kehadiran</span>
         </button>
       </div>
     </div>
 
-    <!-- Statistik Card & Persentase Kedatangan (Kumulatif Real-time) -->
+    <!-- Statistik Card & Persentase -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
       <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
         <div>
           <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Inspection Report</p>
-          <p class="text-2xl font-extrabold text-slate-900 mt-1">{{ totalInspectionReport }} <span class="text-xs font-normal text-slate-500">orang</span></p>
+          <p class="text-2xl font-extrabold text-slate-900 mt-1">{{ totalBooking }} <span class="text-xs font-normal text-slate-500">orang</span></p>
         </div>
         <div class="w-12 h-12 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center text-lg font-bold">
           <i class="fa-solid fa-calendar-check"></i>
@@ -172,8 +141,8 @@ async function showDetailByPolisi(polisi) {
 
       <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
         <div>
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Kedatangan</p>
-          <p class="text-2xl font-extrabold text-emerald-600 mt-1">{{ totalKedatangan }} <span class="text-xs font-normal text-slate-500">orang</span></p>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Hadir</p>
+          <p class="text-2xl font-extrabold text-emerald-600 mt-1">{{ totalHadir }} <span class="text-xs font-normal text-slate-500">orang</span></p>
         </div>
         <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold">
           <i class="fa-solid fa-user-check"></i>
@@ -182,8 +151,8 @@ async function showDetailByPolisi(polisi) {
 
       <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
         <div>
-          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Persentase Kedatangan</p>
-          <p class="text-2xl font-extrabold text-blue-600 mt-1">{{ percentageKedatangan }}%</p>
+          <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Persentase Kehadiran</p>
+          <p class="text-2xl font-extrabold text-blue-600 mt-1">{{ percentage }}%</p>
         </div>
         <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-lg font-bold">
           <i class="fa-solid fa-chart-pie"></i>
@@ -191,7 +160,7 @@ async function showDetailByPolisi(polisi) {
       </div>
     </div>
 
-    <!-- Tabel List Kedatangan (Difilter Berdasarkan Tanggal) -->
+    <!-- Tabel List Kehadiran -->
     <div class="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
@@ -213,7 +182,7 @@ async function showDetailByPolisi(polisi) {
               <td class="py-4 px-5 font-semibold text-slate-700">{{ item.tanggal }}</td>
               <td class="py-4 px-5 text-center">
                 <button 
-                  @click="toggleKedatangan(item)"
+                  @click="toggleHadir(item)"
                   class="px-3.5 py-1.5 rounded-xl font-bold text-xs transition shadow-2xs"
                   :class="item.status_hadir ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-slate-100 text-slate-500 border border-slate-200'"
                 >
@@ -229,7 +198,7 @@ async function showDetailByPolisi(polisi) {
             </tr>
             <tr v-if="!attendanceList.length">
               <td colspan="4" class="text-center py-10 text-slate-400 text-xs">
-                Belum ada data kedatangan pada tanggal ini.
+                Belum ada data kehadiran pada tanggal ini.
               </td>
             </tr>
           </tbody>
@@ -237,11 +206,11 @@ async function showDetailByPolisi(polisi) {
       </div>
     </div>
 
-    <!-- MODAL TAMBAH KEDATANGAN -->
+    <!-- MODAL TAMBAH KEHADIRAN -->
     <div v-if="showModal" class="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
       <div class="bg-white rounded-3xl max-w-md w-full p-6 space-y-5 shadow-xl border border-slate-200">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h3 class="font-extrabold text-slate-900 text-sm">Tambah Kedatangan Booking</h3>
+          <h3 class="font-extrabold text-slate-900 text-sm">Tambah Kehadiran Booking</h3>
           <button @click="showModal = false" class="text-slate-400 hover:text-slate-700">
             <i class="fa-solid fa-xmark text-base"></i>
           </button>
@@ -283,7 +252,7 @@ async function showDetailByPolisi(polisi) {
 
         <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
           <button @click="showModal = false" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold">Batal</button>
-          <button @click="handleSaveAttendance" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-200">Simpan Kedatangan</button>
+          <button @click="handleSaveAttendance" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-200">Simpan Kehadiran</button>
         </div>
       </div>
     </div>
