@@ -28,20 +28,23 @@ const loading = ref(false)
 const isSerangOrTesting = ref(false)
 const isIrTesting = ref(false)
 
-// [REVISI UTAMA] Mengambil ID Profil secara murni langsung dari active_profile yang tersimpan di localStorage
 const getActiveProfileId = () => {
   try {
     const profileItem = localStorage.getItem('active_profile')
     if (!profileItem) return null
     
+    const trimmedItem = profileItem.trim()
+    if (!trimmedItem.startsWith('{') && !trimmedItem.startsWith('[')) {
+      return trimmedItem
+    }
+
     const profile = JSON.parse(profileItem)
-    console.log('🔍 Active Profile Data:', profile)
+    const rawId = profile.id || profile.branch_id || profile.uuid || profile.profile_id || profile.user_id || profile.uid
     
-    // Ambil ID secara presisi dari data profile yang sedang aktif login
-    const validId = profile.id || profile.branch_id || profile.uuid
-    return validId || null
+    if (!rawId || rawId === 'undefined' || rawId === 'null') return null
+    return String(rawId).trim()
   } catch (err) {
-    console.error('❌ Gagal memarsing active_profile dari localStorage:', err)
+    console.error('Gagal memarsing active_profile:', err)
     return null
   }
 }
@@ -51,8 +54,9 @@ onMounted(async () => {
   let currentEmail = ''
   
   try {
-    const profile = JSON.parse(localStorage.getItem('active_profile'))
-    if (profile) {
+    const profileItem = localStorage.getItem('active_profile')
+    if (profileItem) {
+      const profile = JSON.parse(profileItem)
       currentProfileName = (profile.nama || profile.branch_name || '').toLowerCase()
       currentEmail = (profile.email || '').toLowerCase()
     }
@@ -61,13 +65,16 @@ onMounted(async () => {
     currentEmail = ''
   }
 
-  isIrTesting.value = currentEmail === 'irtestingdki@gmail.com' || currentProfileName.includes('ir testing') || currentProfileName.includes('testing')
-  isSerangOrTesting.value = currentProfileName.includes('serang') || isIrTesting.value
+  isIrTesting.value = 
+    currentEmail.includes('irtesting') || 
+    currentProfileName.includes('testing')
 
-  if (isIrTesting.value) {
+  isSerangOrTesting.value = currentProfileName.includes('serang') || currentProfileName.includes('citra') || isIrTesting.value
+
+  if (currentProfileName.includes('citra')) {
     advisorsList.value = [
-      { nama: 'Testing1', hp: '123456' },
-      { nama: 'Testing2', hp: '78901112' }
+      { nama: 'Advisor Citra Raya 1' },
+      { nama: 'Advisor Citra Raya 2' }
     ]
   } else if (currentProfileName.includes('serang')) {
     advisorsList.value = [
@@ -118,7 +125,7 @@ async function save() {
 
   const profileId = getActiveProfileId()
   if (!profileId) {
-    message.value = { text: 'Sesi cabang tidak ditemukan atau ID profil kosong. Silakan Logout dan Login ulang.', type: 'error' }
+    message.value = { text: 'Sesi cabang tidak ditemukan. Silakan Logout dan Login ulang.', type: 'error' }
     return
   }
 
@@ -171,7 +178,7 @@ async function save() {
           <input 
             type="date" 
             v-model="f.tanggal" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" 
+            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 transition" 
           />
         </div>
 
@@ -180,7 +187,7 @@ async function save() {
           <input 
             v-model="f.nama" 
             placeholder="Nama customer" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" 
+            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
           />
         </div>
 
@@ -188,7 +195,7 @@ async function save() {
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Service Advisor</label>
           <select 
             v-model="f.advisor" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs"
+            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 transition"
           >
             <option value="" disabled>-- Pilih Service Advisor --</option>
             <option v-for="(adv, idx) in advisorsList" :key="idx" :value="adv.nama">
@@ -199,12 +206,12 @@ async function save() {
         
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1">
-            <i class="fa-solid fa-user-gear text-blue-600 text-[10px]"></i> Nama Mekanik (Rekap Excel)
+            <i class="fa-solid fa-user-gear text-blue-600 text-[10px]"></i> Nama Mekanik
           </label>
           <input 
             v-model="f.namaMekanik" 
             placeholder="Nama mekanik yang menangani" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" 
+            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
           />
         </div>
 
@@ -214,7 +221,7 @@ async function save() {
             type="tel" 
             v-model="f.telp" 
             placeholder="08xxxxxxxxxx" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" 
+            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
           />
         </div>
 
@@ -223,7 +230,7 @@ async function save() {
           <input 
             v-model="f.polisi" 
             placeholder="B 1234 XYZ" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 uppercase placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" 
+            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 uppercase placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
           />
         </div>
 
@@ -232,7 +239,7 @@ async function save() {
           <input 
             v-model="f.rencana" 
             placeholder="Mis. 20 Nov 2026 / 5.000 km" 
-            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" 
+            class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 transition" 
           />
         </div>
       </div>
@@ -244,15 +251,12 @@ async function save() {
           <div 
             v-for="(it, i) in f.items" 
             :key="it.k" 
-            class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+            class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80"
           >
-            <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 hidden sm:flex">
-              {{ i + 1 }}
-            </span>
             <input 
               v-model="it.jasa" 
               placeholder="Nama Jasa / Sparepart" 
-              class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs" 
+              class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600" 
             />
             <div class="flex items-center gap-2">
               <input 
@@ -261,14 +265,14 @@ async function save() {
                 min="0" 
                 v-model.number="it.qty" 
                 placeholder="Qty" 
-                class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" 
+                class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600" 
               />
               <input 
                 type="number" 
                 min="0" 
                 v-model.number="it.harga" 
                 placeholder="Harga Satuan" 
-                class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600 shadow-2xs" 
+                class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600" 
               />
             </div>
             <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
@@ -279,7 +283,7 @@ async function save() {
                 type="button" 
                 :disabled="f.items.length === 1" 
                 @click="f.items.splice(i, 1)" 
-                class="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shrink-0 shadow-2xs"
+                class="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shrink-0"
               >
                 <i class="fa-solid fa-xmark text-xs"></i>
               </button>
@@ -290,32 +294,20 @@ async function save() {
         <button 
           type="button" 
           @click="f.items.push(row())" 
-          class="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-2 shadow-2xs"
+          class="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-2"
         >
           <i class="fa-solid fa-plus text-[10px]"></i>
           <span>Tambah Baris</span>
         </button>
       </div>
 
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-200 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-200 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
         <div>
           <p class="text-[11px] font-bold text-slate-500 uppercase">Catatan</p>
           <p class="text-xs text-slate-700 mt-0.5 font-medium">
             Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 
-            <span class="font-bold text-blue-600">{{ isSerangOrTesting ? '10%' : '15%' }}</span>.
+            <span class="font-bold text-blue-600">10%</span>.
           </p>
-
-          <div v-if="isIrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
-            <p class="text-slate-900 font-bold">Rekening Cabang IR TESTING:</p>
-            <p>An. PT. Astra International</p>
-            <p class="text-blue-600 font-bold">No Rekening: 12345678</p>
-            <p class="text-[10px] text-slate-500">Alamat: Jl Testing Raya</p>
-          </div>
-          <div v-else-if="isSerangOrTesting" class="mt-2.5 pt-2 border-t border-slate-200 text-xs text-slate-700 space-y-0.5 font-semibold">
-            <p class="text-slate-900 font-bold">Rekening BCA Cabang Serang:</p>
-            <p>An. PT. Astra International Tbk</p>
-            <p class="text-blue-600 font-bold">No Rekening: 093.302.2533</p>
-          </div>
         </div>
         <div class="text-right w-full sm:w-auto">
           <p class="text-[11px] font-bold text-slate-500 uppercase">Total Keseluruhan</p>
@@ -328,7 +320,7 @@ async function save() {
           type="button" 
           @click="save" 
           :disabled="loading" 
-          class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-sm shadow-blue-200 flex items-center gap-2 disabled:opacity-50"
+          class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-sm flex items-center gap-2 disabled:opacity-50"
         >
           <i v-if="loading" class="fa-solid fa-spinner animate-spin text-xs"></i>
           <i v-else class="fa-solid fa-floppy-disk text-xs"></i>
@@ -338,7 +330,7 @@ async function save() {
           type="button" 
           @click="reset" 
           :disabled="loading" 
-          class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition shadow-2xs"
+          class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition"
         >
           Reset Form
         </button>

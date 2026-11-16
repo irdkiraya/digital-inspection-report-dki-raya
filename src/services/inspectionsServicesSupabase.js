@@ -20,11 +20,10 @@ export async function fetchAdvisorsByProfile(profileId) {
 }
 
 /**
- * Menyimpan data inspeksi baru atau memperbarui data yang sudah ada (Mode Edit)
+ * Menyimpan data inspeksi baru atau memperbarui data (Edit)
  */
 export async function saveInspectionRecord(record, profileId, isEdit = false) {
   try {
-    // --- PENENTUAN PROFILE ID SECARA DINAMIS DARI SESI AKTIF ---
     let finalProfileId = profileId;
 
     if (!finalProfileId || finalProfileId === 'undefined' || finalProfileId === 'null') {
@@ -38,23 +37,34 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
       }
     }
 
-    if (!finalProfileId || finalProfileId === 'undefined' || finalProfileId === 'null') {
-      return { success: false, error: 'ID Profile aktif tidak ditemukan. Silakan login ulang.' }
+    // Auto-fetch profile dari database profiles jika ID tidak valid
+    if (!finalProfileId || !String(finalProfileId).includes('-')) {
+      const activeProfile = JSON.parse(localStorage.getItem('active_profile') || '{}');
+      let targetEmail = activeProfile.email || 'irserang@gmail.com';
+
+      const { data: dbProfile, error: profileErr } = await supabase
+        .from('profiles') 
+        .select('id, email, nama, created_at')
+        .ilike('email', targetEmail)
+        .maybeSingle();
+
+      if (profileErr || !dbProfile) {
+        return { success: false, error: `Sesi profil tidak valid untuk email: ${targetEmail}` };
+      }
+      finalProfileId = dbProfile.id;
+      localStorage.setItem('active_profile', JSON.stringify(dbProfile));
     }
 
-    console.log('🚀 FINAL PROFILE ID AKTIF:', finalProfileId);
-
-    // 1. Validasi relasi item jasa
     const validItems = record.items.filter(i => i.jasa && i.jasa.trim() !== '')
     if (!validItems.length) {
       return { success: false, error: 'Minimal harus ada satu baris jasa atau sparepart yang diisi.' }
     }
 
     if (isEdit) {
-      // --- PROSES UPDATE / EDIT ---
       const { error: headerErr } = await supabase
         .from('inspeksi')
         .update({
+          id_profile: finalProfileId,
           tanggal: record.tanggal,
           nama: record.nama.trim(),
           advisor: record.advisor,
@@ -91,7 +101,6 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
       return { success: true, message: `Laporan inspeksi nomor ${record.id} berhasil diperbarui.` }
 
     } else {
-      // --- PROSES INSERT / TAMBAH BARU ---
       const inspectionId = record.id || crypto.randomUUID()
 
       const payloadHeader = {
@@ -106,16 +115,11 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
         rencana: record.rencana
       };
 
-      console.log('📤 PAYLOAD HEADER YANG DIKIRIM:', payloadHeader);
-
       const { error: headerErr } = await supabase
         .from('inspeksi')
         .insert([payloadHeader])
 
-      if (headerErr) {
-        console.error('❌ ERROR SUPABASE INSERT:', headerErr);
-        throw headerErr;
-      }
+      if (headerErr) throw headerErr
 
       const itemsToInsert = validItems.map(item => ({
         inspeksi_id: inspectionId,
@@ -130,15 +134,12 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
       if (itemsErr) throw itemsErr
 
-      return { success: true, message: `Laporan inspeksi baru berhasil disimpan ke database.` }
+      return { success: true, message: `Laporan inspeksi baru berhasil disimpan.` }
     }
 
   } catch (err) {
     console.error('Database Error Catch:', err)
-    return { 
-      success: false, 
-      error: err.message || 'Terjadi kesalahan saat berkomunikasi dengan server database.' 
-    }
+    return { success: false, error: err.message || 'Terjadi kesalahan sistem database.' }
   }
 }
 
@@ -153,18 +154,8 @@ export async function deleteInspectionRecord(id, profileId) {
       finalProfileId = activeProfile.id;
     }
 
-    const { error: itemErr } = await supabase
-      .from('inspection_items')
-      .delete()
-      .eq('inspeksi_id', id)
-
-    if (itemErr) throw itemErr
-
-    const { error: headerErr } = await supabase
-      .from('inspeksi')
-      .delete()
-      .eq('id', id)
-      .eq('id_profile', finalProfileId)
+    await supabase.from('inspection_items').delete().eq('inspeksi_id', id)
+    const { error: headerErr } = await supabase.from('inspeksi').delete().eq('id', id).eq('id_profile', finalProfileId)
 
     if (headerErr) throw headerErr
 
