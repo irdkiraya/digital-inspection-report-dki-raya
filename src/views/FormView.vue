@@ -1,11 +1,12 @@
 <script setup>
 import { reactive, ref, computed, watch, onMounted } from 'vue'
-import { rp, total } from '../utils'
-import { fetchAdvisorsByProfile, saveInspectionRecord } from '../services/inspectionsServicesSupabase'
+import { rp } from '../utils'
+import { fetchAdvisorsByProfile, saveInspectionRecord, uploadInspectionPhoto } from '../services/inspectionsServicesSupabase'
 
 const props = defineProps({ initialData: Object })
 const emit = defineEmits(['save'])
 
+const MAX_ITEMS = 30
 let k = 0
 const row = (jasa = '', qty = 1, harga = 0) => ({ k: ++k, jasa, qty, harga })
 
@@ -26,7 +27,9 @@ const message = ref({ text: '', type: '' })
 const loading = ref(false)
 const activeProfile = ref(null)
 
-// Ambil seluruh objek active_profile dari localStorage
+// State Multiple Foto: { id, url, file }
+const photoList = ref([])
+
 const loadActiveProfile = () => {
   try {
     const profile = JSON.parse(localStorage.getItem('active_profile'))
@@ -43,10 +46,9 @@ const getActiveProfileId = () => {
   return profile ? profile.id : null
 }
 
-// Cek apakah cabang yang aktif adalah Serang
+// Deteksi Cabang Serang
 const isCabangSerang = computed(() => {
   if (!activeProfile.value) return false
-  
   const email = (activeProfile.value.email || '').toLowerCase()
   const nama = (activeProfile.value.nama || '').toLowerCase()
   const kota = (activeProfile.value.kota || '').toLowerCase()
@@ -61,7 +63,6 @@ const isCabangSerang = computed(() => {
   )
 })
 
-// Konfigurasi dinamis berdasarkan cabang
 const branchConfig = computed(() => {
   if (isCabangSerang.value) {
     return {
@@ -75,7 +76,18 @@ const branchConfig = computed(() => {
   }
 })
 
-// Helper konversi input desimal (mengubah koma menjadi titik agar aman dihitung)
+// Helper parsing foto_url dari database
+const parseSavedPhotos = (fotoUrlField) => {
+  if (!fotoUrlField) return []
+  try {
+    const parsed = JSON.parse(fotoUrlField)
+    if (Array.isArray(parsed)) return parsed.filter(Boolean)
+  } catch {
+    // Fallback string URL tunggal
+  }
+  return typeof fotoUrlField === 'string' && fotoUrlField.trim() !== '' ? [fotoUrlField.trim()] : []
+}
+
 const parseDecimal = (val) => {
   if (val === '' || val === null || val === undefined) return 0
   const normalized = String(val).replace(',', '.')
@@ -83,12 +95,9 @@ const parseDecimal = (val) => {
   return isNaN(num) ? 0 : num
 }
 
-// Filter agar input Qty hanya menerima angka dan 1 tanda titik/koma desimal
 const handleQtyInput = (item, event) => {
   let val = event.target.value.replace(',', '.')
-  // Hapus karakter selain angka dan titik
   val = val.replace(/[^0-9.]/g, '')
-  // Pastikan hanya ada 1 tanda titik desimal
   const parts = val.split('.')
   if (parts.length > 2) {
     val = parts[0] + '.' + parts.slice(1).join('')
@@ -96,12 +105,83 @@ const handleQtyInput = (item, event) => {
   item.qty = val
 }
 
-// Hitung total keseluruhan dengan dukungan Qty desimal
 const grandTotal = computed(() => {
   return f.items.reduce((sum, it) => {
     return sum + (parseDecimal(it.qty) * parseDecimal(it.harga))
   }, 0)
 })
+
+// Kompres gambar sebelum di-upload agar cepat & ringan
+const compressImageFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX_SIZE = 1024
+        let width = img.width
+        let height = img.height
+
+        if (width > height && width > MAX_SIZE) {
+          height = Math.round((height * MAX_SIZE) / width)
+          width = MAX_SIZE
+        } else if (height >= width && height > MAX_SIZE) {
+          width = Math.round((width * MAX_SIZE) / height)
+          height = MAX_SIZE
+        }
+
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob((blob) => {
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
+            type: 'image/jpeg'
+          })
+          resolve({
+            id: Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+            url: URL.createObjectURL(blob),
+            file: compressedFile
+          })
+        }, 'image/jpeg', 0.78)
+      }
+      img.onerror = reject
+      img.src = e.target.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+async function handleMultiplePhotos(event) {
+  const files = Array.from(event.target.files || [])
+  if (!files.length) return
+
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue
+    try {
+      const photoObj = await compressImageFile(file)
+      photoList.value.push(photoObj)
+    } catch (err) {
+      console.error('Gagal memproses foto:', err)
+    }
+  }
+  event.target.value = ''
+}
+
+function removePhotoAt(index) {
+  photoList.value.splice(index, 1)
+}
+
+function addItemRow() {
+  if (f.items.length >= MAX_ITEMS) {
+    message.value = { text: `Maksimal daftar jasa & sparepart adalah ${MAX_ITEMS} baris.`, type: 'error' }
+    return
+  }
+  f.items.push(row())
+}
 
 onMounted(async () => {
   const profileId = getActiveProfileId()
@@ -121,21 +201,32 @@ watch(() => props.initialData, (val) => {
     f.telp = val.telp
     f.polisi = val.polisi
     f.rencana = val.rencana
-    f.items = val.items && val.items.length ? val.items.map(i => row(i.jasa, i.qty, i.harga)) : [row()]
+    f.items = val.items && val.items.length
+      ? val.items.slice(0, MAX_ITEMS).map(i => row(i.jasa, i.qty, i.harga))
+      : [row()]
+
+    const existingUrls = parseSavedPhotos(val.foto_url)
+    photoList.value = existingUrls.map((url, idx) => ({
+      id: `existing-${idx}`,
+      url,
+      file: null
+    }))
   } else {
     Object.assign(f, blank())
+    photoList.value = []
   }
 }, { immediate: true })
 
 const reset = () => { 
   Object.assign(f, blank())
+  photoList.value = []
   message.value = { text: '', type: '' }
 }
 
 async function save() {
   message.value = { text: '', type: '' }
 
-  // 1. Validasi Mandatory untuk seluruh field Header
+  // 1. Validasi Mandatory Header
   if (
     !f.tanggal ||
     !f.nama.trim() ||
@@ -152,7 +243,12 @@ async function save() {
     return
   }
 
-  // 2. Validasi Mandatory untuk Daftar Jasa & Sparepart (Mendukung Qty Desimal > 0)
+  // 2. Validasi Mandatory Daftar Jasa & Sparepart (Maksimal 30 baris)
+  if (f.items.length > MAX_ITEMS) {
+    message.value = { text: `Maksimal jumlah baris jasa/sparepart adalah ${MAX_ITEMS}.`, type: 'error' }
+    return
+  }
+
   const hasEmptyItem = f.items.some(
     (i) => !i.jasa.trim() || parseDecimal(i.qty) <= 0 || parseDecimal(i.harga) <= 0
   )
@@ -173,14 +269,37 @@ async function save() {
 
   loading.value = true
 
-  // Normalisasi angka desimal sebelum dikirim ke database
-  const normalizedItems = f.items.map(i => ({
+  // 3. Upload semua foto ke Supabase Storage (khusus cabang Serang)
+  const finalPhotoUrls = []
+  if (isCabangSerang.value && photoList.value.length > 0) {
+    for (const itemPhoto of photoList.value) {
+      if (itemPhoto.file) {
+        const uploadRes = await uploadInspectionPhoto(itemPhoto.file, profileId)
+        if (uploadRes.error) {
+          loading.value = false
+          message.value = { text: 'Gagal mengunggah salah satu foto: ' + uploadRes.error, type: 'error' }
+          return
+        }
+        finalPhotoUrls.push(uploadRes.url)
+      } else if (itemPhoto.url) {
+        finalPhotoUrls.push(itemPhoto.url)
+      }
+    }
+  }
+
+  const normalizedItems = f.items.slice(0, MAX_ITEMS).map(i => ({
     ...i,
     qty: parseDecimal(i.qty),
     harga: parseDecimal(i.harga)
   }))
 
-  const recordPayload = { ...f, items: normalizedItems }
+  const recordPayload = {
+    ...f,
+    photos: finalPhotoUrls,
+    foto_url: finalPhotoUrls.length ? JSON.stringify(finalPhotoUrls) : null,
+    items: normalizedItems
+  }
+
   const result = await saveInspectionRecord(recordPayload, profileId, !!props.initialData)
 
   loading.value = false
@@ -214,6 +333,7 @@ async function save() {
         <span>{{ message.text }}</span>
       </div>
 
+      <!-- HEADER INPUTS -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Tanggal Pemeriksaan <span class="text-rose-600">*</span></label>
@@ -248,77 +368,17 @@ async function save() {
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Rencana Penggantian <span class="text-rose-600">*</span></label>
           <input v-model="f.rencana" required placeholder="Mis. 20 Nov 2026 / 5.000 km" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
-      </div>
 
-      <div class="space-y-3 pt-4 border-t border-slate-200">
-        <h3 class="font-bold text-xs text-slate-900 uppercase tracking-wide">Daftar Jasa & Sparepart <span class="text-rose-600">*</span></h3>
-
-        <div class="space-y-2.5">
-          <div v-for="(it, i) in f.items" :key="it.k" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-            <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 hidden sm:flex">{{ i + 1 }}</span>
-            <input v-model="it.jasa" required placeholder="Nama Jasa / Sparepart *" class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs" />
-            <div class="flex items-center gap-2">
-              <!-- Input Qty mendukung angka bulat maupun desimal (misal: 0.5, 1.5, 3.5) -->
-              <input 
-                type="text" 
-                inputmode="decimal" 
-                :value="it.qty" 
-                @input="handleQtyInput(it, $event)" 
-                required 
-                placeholder="Qty *" 
-                class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" 
-              />
-              <input 
-                type="number" 
-                min="1" 
-                step="any" 
-                v-model.number="it.harga" 
-                required 
-                placeholder="Harga Satuan *" 
-                class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600 shadow-2xs" 
-              />
-            </div>
-            <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-              <span class="font-extrabold text-xs text-slate-900 w-28 text-right">{{ rp(parseDecimal(it.qty) * parseDecimal(it.harga)) }}</span>
-              <button type="button" :disabled="f.items.length === 1" @click="f.items.splice(i, 1)" class="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shrink-0 shadow-2xs">
-                <i class="fa-solid fa-xmark text-xs"></i>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <button type="button" @click="f.items.push(row())" class="px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-xl font-bold text-xs transition flex items-center gap-2 shadow-2xs">
-          <i class="fa-solid fa-plus text-[10px]"></i>
-          <span>Tambah Baris</span>
-        </button>
-      </div>
-
-      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-200 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-        <div class="space-y-1">
-          <p class="text-[11px] font-bold text-slate-500 uppercase">Catatan</p>
-          <p class="text-xs text-slate-700 font-medium">
-            Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa {{ branchConfig.diskon }}.
-          </p>
-          <p v-if="branchConfig.noRekening" class="text-xs text-slate-700 font-semibold">
-            No. Rekening BCA: <span class="text-blue-700 font-bold">{{ branchConfig.noRekening }}</span>
-          </p>
-        </div>
-        <div class="text-right w-full sm:w-auto">
-          <p class="text-[11px] font-bold text-slate-500 uppercase">Total Keseluruhan</p>
-          <p class="text-lg font-extrabold text-blue-600">{{ rp(grandTotal) }}</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3 pt-2">
-        <button type="button" @click="save" :disabled="loading" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-sm shadow-blue-200 flex items-center gap-2 disabled:opacity-50">
-          <i v-if="loading" class="fa-solid fa-spinner animate-spin text-xs"></i>
-          <i v-else class="fa-solid fa-floppy-disk text-xs"></i>
-          <span>{{ loading ? 'Menyimpan...' : (initialData ? 'Perbarui Data' : 'Simpan Data') }}</span>
-        </button>
-        <button type="button" @click="reset" :disabled="loading" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-xl font-bold text-xs transition shadow-2xs">
-          Reset Form
-        </button>
-      </div>
-    </div>
-  </div>
-</template>
+        <!-- LAMPIRAN FOTO KERUSAKAN DI HEADER (KHUSUS CABANG SERANG) -->
+        <div v-if="isCabangSerang" class="space-y-1.5 sm:col-span-2">
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
+            Lampiran Foto Kerusakan (Opsional — Bisa Lebih dari 1 Foto)
+          </label>
+          <div class="flex flex-wrap items-center gap-3">
+            <label class="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-2xl font-bold text-xs cursor-pointer transition shadow-2xs">
+              <i class="fa-solid fa-camera text-blue-600"></i>
+              <span>{{ photoList.length ? 'Tambah Foto Lagi' : 'Pilih / Ambil Foto Kerusakan' }}</span>
+              <input type="file" accept="image/*" multiple @change="handleMultiplePhotos" class="hidden" />
+            </label>
+            <span v-if="photoList.length" class="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200">
+              {{ photoList.length }} Foto
