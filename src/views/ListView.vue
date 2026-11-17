@@ -42,6 +42,7 @@ async function loadData() {
         telp,
         polisi,
         rencana,
+        foto_url,
         items:inspection_items (
           jasa,
           qty,
@@ -131,7 +132,7 @@ function handleFilterChange() {
       <div class="relative flex-1 w-full">
         <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-sky-500 text-xs"></i>
         <input 
-          type="text"
+          type="text" 
           v-model="q" 
           placeholder="Cari nama, nopol, advisor..." 
           class="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-9 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition"
