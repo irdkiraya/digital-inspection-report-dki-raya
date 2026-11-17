@@ -43,7 +43,7 @@ const getActiveProfileId = () => {
   return profile ? profile.id : null
 }
 
-// Cek apakah cabang yang aktif adalah Serang (irserang@gmail.com / PT. ASTRA DAIHATSU SERANG / Kota Serang)
+// Cek apakah cabang yang aktif adalah Serang
 const isCabangSerang = computed(() => {
   if (!activeProfile.value) return false
   
@@ -73,6 +73,34 @@ const branchConfig = computed(() => {
     diskon: '15%',
     noRekening: null
   }
+})
+
+// Helper konversi input desimal (mengubah koma menjadi titik agar aman dihitung)
+const parseDecimal = (val) => {
+  if (val === '' || val === null || val === undefined) return 0
+  const normalized = String(val).replace(',', '.')
+  const num = parseFloat(normalized)
+  return isNaN(num) ? 0 : num
+}
+
+// Filter agar input Qty hanya menerima angka dan 1 tanda titik/koma desimal
+const handleQtyInput = (item, event) => {
+  let val = event.target.value.replace(',', '.')
+  // Hapus karakter selain angka dan titik
+  val = val.replace(/[^0-9.]/g, '')
+  // Pastikan hanya ada 1 tanda titik desimal
+  const parts = val.split('.')
+  if (parts.length > 2) {
+    val = parts[0] + '.' + parts.slice(1).join('')
+  }
+  item.qty = val
+}
+
+// Hitung total keseluruhan dengan dukungan Qty desimal
+const grandTotal = computed(() => {
+  return f.items.reduce((sum, it) => {
+    return sum + (parseDecimal(it.qty) * parseDecimal(it.harga))
+  }, 0)
 })
 
 onMounted(async () => {
@@ -106,11 +134,32 @@ const reset = () => {
 
 async function save() {
   message.value = { text: '', type: '' }
-  const items = f.items.filter((i) => i.jasa.trim())
 
-  if (!f.nama.trim() || !f.polisi.trim() || !f.tanggal || !items.length) {
+  // 1. Validasi Mandatory untuk seluruh field Header
+  if (
+    !f.tanggal ||
+    !f.nama.trim() ||
+    !f.advisor.trim() ||
+    !f.namaMekanik.trim() ||
+    !f.telp.trim() ||
+    !f.polisi.trim() ||
+    !f.rencana.trim()
+  ) {
     message.value = { 
-      text: 'Mohon lengkapi Tanggal Pemeriksaan, Nama Customer, Nomor Polisi, dan minimal satu baris Jasa/Sparepart.', 
+      text: 'Semua kolom wajib diisi (Tanggal Pemeriksaan, Nama Customer, Service Advisor, Mekanik, Nomor Telepon, Nomor Polisi, dan Rencana Penggantian).', 
+      type: 'error' 
+    }
+    return
+  }
+
+  // 2. Validasi Mandatory untuk Daftar Jasa & Sparepart (Mendukung Qty Desimal > 0)
+  const hasEmptyItem = f.items.some(
+    (i) => !i.jasa.trim() || parseDecimal(i.qty) <= 0 || parseDecimal(i.harga) <= 0
+  )
+
+  if (!f.items.length || hasEmptyItem) {
+    message.value = { 
+      text: 'Semua baris Jasa/Sparepart wajib diisi lengkap (Nama Jasa/Sparepart, Qty lebih dari 0, dan Harga Satuan lebih dari 0).', 
       type: 'error' 
     }
     return
@@ -124,7 +173,14 @@ async function save() {
 
   loading.value = true
 
-  const recordPayload = { ...f, items }
+  // Normalisasi angka desimal sebelum dikirim ke database
+  const normalizedItems = f.items.map(i => ({
+    ...i,
+    qty: parseDecimal(i.qty),
+    harga: parseDecimal(i.harga)
+  }))
+
+  const recordPayload = { ...f, items: normalizedItems }
   const result = await saveInspectionRecord(recordPayload, profileId, !!props.initialData)
 
   loading.value = false
@@ -146,7 +202,9 @@ async function save() {
       <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">
         {{ initialData ? 'Edit Inspection Report' : 'Input Inspection Report' }}
       </h1>
-      <p class="text-xs text-slate-500 mt-0.5">Perbarui data header dan daftar jasa/sparepart sesuai kebutuhan.</p>
+      <p class="text-xs text-slate-500 mt-0.5">
+        Lengkapi seluruh data header dan daftar jasa/sparepart (<span class="text-rose-600 font-bold">*</span> wajib diisi).
+      </p>
     </div>
 
     <div class="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 md:p-8 space-y-6">
@@ -158,16 +216,16 @@ async function save() {
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Tanggal Pemeriksaan</label>
-          <input type="date" v-model="f.tanggal" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Tanggal Pemeriksaan <span class="text-rose-600">*</span></label>
+          <input type="date" v-model="f.tanggal" required class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nama Customer</label>
-          <input v-model="f.nama" placeholder="Nama customer" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nama Customer <span class="text-rose-600">*</span></label>
+          <input v-model="f.nama" required placeholder="Nama customer" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Service Advisor</label>
-          <select v-model="f.advisor" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs">
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Service Advisor <span class="text-rose-600">*</span></label>
+          <select v-model="f.advisor" required class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs">
             <option value="" disabled>-- Pilih Service Advisor --</option>
             <option v-for="(adv, idx) in advisorsList" :key="idx" :value="adv.nama">
               {{ adv.nama }}
@@ -175,36 +233,53 @@ async function save() {
           </select>
         </div>
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Mekanik</label>
-          <input v-model="f.namaMekanik" placeholder="Nama mekanik yang menangani" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Mekanik <span class="text-rose-600">*</span></label>
+          <input v-model="f.namaMekanik" required placeholder="Nama mekanik yang menangani" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nomor Telepon</label>
-          <input type="tel" v-model="f.telp" placeholder="08xxxxxxxxxx" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nomor Telepon <span class="text-rose-600">*</span></label>
+          <input type="tel" v-model="f.telp" required placeholder="08xxxxxxxxxx" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nomor Polisi</label>
-          <input v-model="f.polisi" placeholder="B 1234 XYZ" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 uppercase placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Nomor Polisi <span class="text-rose-600">*</span></label>
+          <input v-model="f.polisi" required placeholder="B 1234 XYZ" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 uppercase placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
         <div class="space-y-1.5">
-          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Rencana Penggantian</label>
-          <input v-model="f.rencana" placeholder="Mis. 20 Nov 2026 / 5.000 km" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
+          <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Rencana Penggantian <span class="text-rose-600">*</span></label>
+          <input v-model="f.rencana" required placeholder="Mis. 20 Nov 2026 / 5.000 km" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
         </div>
       </div>
 
       <div class="space-y-3 pt-4 border-t border-slate-200">
-        <h3 class="font-bold text-xs text-slate-900 uppercase tracking-wide">Daftar Jasa & Sparepart</h3>
+        <h3 class="font-bold text-xs text-slate-900 uppercase tracking-wide">Daftar Jasa & Sparepart <span class="text-rose-600">*</span></h3>
 
         <div class="space-y-2.5">
           <div v-for="(it, i) in f.items" :key="it.k" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
             <span class="w-6 h-6 rounded-full bg-slate-200 text-slate-700 text-[11px] font-bold flex items-center justify-center shrink-0 hidden sm:flex">{{ i + 1 }}</span>
-            <input v-model="it.jasa" placeholder="Nama Jasa / Sparepart" class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs" />
+            <input v-model="it.jasa" required placeholder="Nama Jasa / Sparepart *" class="flex-1 bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 shadow-2xs" />
             <div class="flex items-center gap-2">
-              <input type="number" min="1" v-model.number="it.qty" placeholder="Qty" class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" />
-              <input type="number" min="0" v-model.number="it.harga" placeholder="Harga Satuan" class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600 shadow-2xs" />
+              <!-- Input Qty mendukung angka bulat maupun desimal (misal: 0.5, 1.5, 3.5) -->
+              <input 
+                type="text" 
+                inputmode="decimal" 
+                :value="it.qty" 
+                @input="handleQtyInput(it, $event)" 
+                required 
+                placeholder="Qty *" 
+                class="w-20 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-center focus:outline-none focus:border-blue-600 shadow-2xs" 
+              />
+              <input 
+                type="number" 
+                min="1" 
+                step="any" 
+                v-model.number="it.harga" 
+                required 
+                placeholder="Harga Satuan *" 
+                class="w-28 sm:w-32 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 text-right focus:outline-none focus:border-blue-600 shadow-2xs" 
+              />
             </div>
             <div class="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200">
-              <span class="font-extrabold text-xs text-slate-900 w-28 text-right">{{ rp((it.qty || 0) * (it.harga || 0)) }}</span>
+              <span class="font-extrabold text-xs text-slate-900 w-28 text-right">{{ rp(parseDecimal(it.qty) * parseDecimal(it.harga)) }}</span>
               <button type="button" :disabled="f.items.length === 1" @click="f.items.splice(i, 1)" class="w-8 h-8 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition shrink-0 shadow-2xs">
                 <i class="fa-solid fa-xmark text-xs"></i>
               </button>
@@ -230,7 +305,7 @@ async function save() {
         </div>
         <div class="text-right w-full sm:w-auto">
           <p class="text-[11px] font-bold text-slate-500 uppercase">Total Keseluruhan</p>
-          <p class="text-lg font-extrabold text-blue-600">{{ rp(total(f)) }}</p>
+          <p class="text-lg font-extrabold text-blue-600">{{ rp(grandTotal) }}</p>
         </div>
       </div>
 
