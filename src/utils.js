@@ -31,7 +31,20 @@ export function isCabangSerangProfile(profile = null) {
   )
 }
 
-// Helper untuk mengubah gambar lokal public menjadi Base64 untuk jsPDF
+// Helper parsing daftar foto dari kolom foto_url (JSON array atau single URL string)
+export function parseInspectionPhotos(fotoUrlField) {
+  if (!fotoUrlField) return []
+  if (Array.isArray(fotoUrlField)) return fotoUrlField.filter(Boolean)
+  try {
+    const parsed = JSON.parse(fotoUrlField)
+    if (Array.isArray(parsed)) return parsed.filter(Boolean)
+  } catch {
+    // Fallback jika berupa string URL tunggal
+  }
+  return typeof fotoUrlField === 'string' && fotoUrlField.trim() !== '' ? [fotoUrlField.trim()] : []
+}
+
+// Helper untuk mengubah gambar lokal public maupun URL Storage menjadi Base64 untuk jsPDF
 async function getBase64ImageFromURL(url) {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -50,7 +63,16 @@ async function getBase64ImageFromURL(url) {
 }
 
 export async function exportPdf(r, advisors = []) {
-  const doc = new jsPDF({ unit: 'mm', format: 'a5', orientation: 'landscape' })
+  const photos = parseInspectionPhotos(r.foto_url)
+  const hasPhoto = photos.length > 0
+
+  // Tanpa foto -> A5 Landscape (210mm x 148mm)
+  // Ada foto   -> A4 Portrait  (210mm x 297mm)
+  const doc = new jsPDF({
+    unit: 'mm',
+    format: hasPhoto ? 'a4' : 'a5',
+    orientation: hasPhoto ? 'portrait' : 'landscape'
+  })
 
   let profile = {}
   try {
@@ -119,12 +141,13 @@ export async function exportPdf(r, advisors = []) {
     doc.text(`${x[2]} : ${x[3]}`, 110, y)
   })
 
-  // 6. Tabel Rincian Jasa & Sparepart
+  // 6. Tabel Rincian Jasa & Sparepart (Maksimal 30 baris untuk semua cabang)
+  const itemsToPrint = (r.items || []).slice(0, 30)
   autoTable(doc, {
     startY: 65,
     head: [['No', 'Jasa/Sparepart', 'Qty', 'Harga Satuan', 'Harga Total']],
     body: [
-      ...r.items.map((i, n) => [
+      ...itemsToPrint.map((i, n) => [
         n + 1, 
         i.jasa, 
         i.qty, 
@@ -141,6 +164,13 @@ export async function exportPdf(r, advisors = []) {
 
   // 7. Catatan Kaki Bawah & Informasi Rekening Pembayaran (Dinamis sesuai Cabang)
   let currentY = doc.lastAutoTable.finalY + 6
+  const pageHeight = doc.internal.pageSize.getHeight()
+
+  if (currentY + 22 > pageHeight) {
+    doc.addPage()
+    currentY = 14
+  }
+
   doc.setFontSize(7.5).setFont(undefined, 'normal')
   doc.text(`*Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa ${diskonJasa}`, 10, currentY)
   
@@ -153,6 +183,67 @@ export async function exportPdf(r, advisors = []) {
   doc.text('An. PT. Astra International Tbk', 10, currentY)
   currentY += 4
   doc.text(`No Rekening : ${noRekeningBca}`, 10, currentY)
+
+  // 8. JUDUL "FOTO KERUSAKAN" & KOTAK FOTO 10x10 CM (KIRI & KANAN, AUTO LEMBAR BARU)
+  if (hasPhoto) {
+    const photoWidth = 100  // 10 cm
+    const photoHeight = 100 // 10 cm
+    const leftX = 4         // Sisi kiri
+    const rightX = 106      // Sisi kanan
+    const outerBoxX = 3
+    const outerBoxWidth = 204
+
+    currentY += 7 // Tepat di bawah teks No Rekening
+
+    // Jika baris foto pertama tidak muat di halaman saat ini, pindah ke lembar baru
+    if (currentY + photoHeight + 12 > pageHeight) {
+      doc.addPage()
+      currentY = 14
+    }
+
+    // Judul rata tengah tepat di atas foto
+    doc.setFontSize(10).setFont(undefined, 'bold')
+    doc.text('FOTO KERUSAKAN', 105, currentY, { align: 'center' })
+    currentY += 4
+
+    for (let i = 0; i < photos.length; i += 2) {
+      // Jika baris foto berikutnya tidak muat di sisa halaman, buat lembar baru
+      if (i > 0 && currentY + photoHeight + 10 > pageHeight) {
+        doc.addPage()
+        currentY = 14
+        doc.setFontSize(10).setFont(undefined, 'bold')
+        doc.text('FOTO KERUSAKAN (Lanjutan)', 105, currentY, { align: 'center' })
+        currentY += 4
+      }
+
+      // Kotak pembungkus luar untuk pasangan foto kiri & kanan
+      doc.setDrawColor(150, 170, 200)
+      doc.setLineWidth(0.3)
+      doc.rect(outerBoxX, currentY - 1, outerBoxWidth, photoHeight + 2)
+
+      // Foto Sisi Kiri (10 x 10 cm)
+      try {
+        const leftBase64 = await getBase64ImageFromURL(photos[i])
+        doc.addImage(leftBase64, 'PNG', leftX, currentY, photoWidth, photoHeight)
+        doc.rect(leftX, currentY, photoWidth, photoHeight)
+      } catch (err) {
+        console.error(`Gagal memuat foto ke-${i + 1}:`, err)
+      }
+
+      // Foto Sisi Kanan (10 x 10 cm) jika ada foto ke-2, ke-4, dst.
+      if (i + 1 < photos.length) {
+        try {
+          const rightBase64 = await getBase64ImageFromURL(photos[i + 1])
+          doc.addImage(rightBase64, 'PNG', rightX, currentY, photoWidth, photoHeight)
+          doc.rect(rightX, currentY, photoWidth, photoHeight)
+        } catch (err) {
+          console.error(`Gagal memuat foto ke-${i + 2}:`, err)
+        }
+      }
+
+      currentY += photoHeight + 5
+    }
+  }
 
   // Simpan File PDF
   doc.save(`inspection-${r.id}-${r.polisi.replace(/\s+/g, '')}.pdf`)
