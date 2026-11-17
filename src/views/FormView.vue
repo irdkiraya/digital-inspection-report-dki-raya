@@ -1,5 +1,5 @@
 <script setup>
-import { reactive, ref, watch, onMounted } from 'vue'
+import { reactive, ref, computed, watch, onMounted } from 'vue'
 import { rp, total } from '../utils'
 import { fetchAdvisorsByProfile, saveInspectionRecord } from '../services/inspectionsServicesSupabase'
 
@@ -8,12 +8,12 @@ const emit = defineEmits(['save'])
 
 let k = 0
 const row = (jasa = '', qty = 1, harga = 0) => ({ k: ++k, jasa, qty, harga })
-// ✅ Ditambahkan: namaMekanik ke objek blank
+
 const blank = () => ({ 
   tanggal: new Date().toISOString().slice(0, 10), 
   nama: '', 
   advisor: '', 
-  namaMekanik: '', // BARU
+  namaMekanik: '', 
   telp: '', 
   polisi: '', 
   rencana: '', 
@@ -24,15 +24,51 @@ const f = reactive(blank())
 const advisorsList = ref([])
 const message = ref({ text: '', type: '' })
 const loading = ref(false)
+const activeProfile = ref(null)
 
-const getActiveProfileId = () => {
+// Ambil seluruh objek active_profile dari localStorage
+const loadActiveProfile = () => {
   try {
     const profile = JSON.parse(localStorage.getItem('active_profile'))
-    return profile ? profile.id : null
+    activeProfile.value = profile || null
+    return profile
   } catch {
+    activeProfile.value = null
     return null
   }
 }
+
+const getActiveProfileId = () => {
+  const profile = loadActiveProfile()
+  return profile ? profile.id : null
+}
+
+// Cek apakah cabang yang aktif adalah irserang@gmail.com
+const isIrSerang = computed(() => {
+  if (!activeProfile.value) return false
+  const identifier = (
+    activeProfile.value.email || 
+    activeProfile.value.username || 
+    activeProfile.value.nama || 
+    ''
+  ).toLowerCase().trim()
+  
+  return identifier === 'irserang@gmail.com'
+})
+
+// Konfigurasi dinamis berdasarkan cabang
+const branchConfig = computed(() => {
+  if (isIrSerang.value) {
+    return {
+      diskon: '10%',
+      noRekening: '093.3022.2533'
+    }
+  }
+  return {
+    diskon: '15%',
+    noRekening: null
+  }
+})
 
 onMounted(async () => {
   const profileId = getActiveProfileId()
@@ -42,14 +78,13 @@ onMounted(async () => {
   }
 })
 
-// ✅ Ditambahkan: pemuatan namaMekanik saat mode edit
 watch(() => props.initialData, (val) => {
   if (val) {
     f.id = val.id
     f.tanggal = val.tanggal
     f.nama = val.nama
     f.advisor = val.advisor
-    f.namaMekanik = val.namaMekanik || '' // BARU
+    f.namaMekanik = val.namaMekanik || ''
     f.telp = val.telp
     f.polisi = val.polisi
     f.rencana = val.rencana
@@ -68,7 +103,6 @@ async function save() {
   message.value = { text: '', type: '' }
   const items = f.items.filter((i) => i.jasa.trim())
 
-  // Validasi tetap sama — namaMekanik opsional, ubah di sini jika wajib
   if (!f.nama.trim() || !f.polisi.trim() || !f.tanggal || !items.length) {
     message.value = { 
       text: 'Mohon lengkapi Tanggal Pemeriksaan, Nama Customer, Nomor Polisi, dan minimal satu baris Jasa/Sparepart.', 
@@ -135,7 +169,6 @@ async function save() {
             </option>
           </select>
         </div>
-        <!-- ✅ BARIS BARU: Nama Mekanik -->
         <div class="space-y-1.5">
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">Mekanik</label>
           <input v-model="f.namaMekanik" placeholder="Nama mekanik yang menangani" class="w-full bg-white border border-slate-300 rounded-2xl px-4 py-2.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition shadow-2xs" />
@@ -181,9 +214,14 @@ async function save() {
       </div>
 
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-4 border-t border-slate-200 bg-slate-50 p-4 rounded-2xl border border-slate-200/80 shadow-2xs">
-        <div>
+        <div class="space-y-1">
           <p class="text-[11px] font-bold text-slate-500 uppercase">Catatan</p>
-          <p class="text-xs text-slate-700 mt-0.5 font-medium">Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 15%.</p>
+          <p class="text-xs text-slate-700 font-medium">
+            Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa {{ branchConfig.diskon }}.
+          </p>
+          <p v-if="branchConfig.noRekening" class="text-xs text-slate-700 font-semibold">
+            No. Rekening Pembayaran: <span class="text-blue-700 font-bold">{{ branchConfig.noRekening }}</span>
+          </p>
         </div>
         <div class="text-right w-full sm:w-auto">
           <p class="text-[11px] font-bold text-slate-500 uppercase">Total Keseluruhan</p>

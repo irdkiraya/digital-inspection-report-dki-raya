@@ -32,7 +32,6 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
     if (isEdit) {
       // --- PROSES UPDATE / EDIT ---
-      // Update data utama header inspeksi
       const { error: headerErr } = await supabase
         .from('inspeksi')
         .update({
@@ -49,7 +48,7 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
       if (headerErr) throw headerErr
 
-      // Strategi item: Hapus item lama yang terikat pada id inspeksi ini, lalu masukkan ulang item yang baru
+      // Hapus item lama yang terikat pada id inspeksi ini, lalu masukkan ulang item baru
       const { error: deleteErr } = await supabase
         .from('inspection_items')
         .delete()
@@ -74,7 +73,6 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
 
     } else {
       // --- PROSES INSERT / TAMBAH BARU ---
-      // Generate ID otomatis (misal: INS-0001, dst atau gunakan timestamp/random string unik)
       const inspectionId = record.id || ('INS-' + Date.now().toString().slice(-6))
 
       const { error: headerErr } = await supabase
@@ -144,5 +142,57 @@ export async function deleteInspectionRecord(id, profileId) {
   } catch (err) {
     console.error('Gagal menghapus data:', err.message)
     return { success: false, error: err.message }
+  }
+}
+
+/**
+ * Mengambil statistik kumulatif (Actual/Realtime dari awal s/d tanggal update)
+ * untuk seluruh cabang berdasarkan id_profile
+ */
+export async function fetchCumulativeStats(profileId, upToDate = null) {
+  try {
+    // 1. Hitung Total Inspection Report dari awal sampai tanggal update
+    let queryReports = supabase
+      .from('inspeksi')
+      .select('id', { count: 'exact', head: true })
+      .eq('id_profile', profileId)
+
+    if (upToDate) {
+      queryReports = queryReports.lte('tanggal', upToDate)
+    }
+
+    // 2. Hitung Total Kedatangan ter-update dari awal sampai tanggal update
+    // Catatan: Sesuaikan nama tabel ('kedatangan') jika di Supabase memakai nama lain (misal 'kehadiran' atau kolom status di 'inspeksi')
+    let queryKedatangan = supabase
+      .from('kedatangan')
+      .select('id', { count: 'exact', head: true })
+      .eq('id_profile', profileId)
+
+    if (upToDate) {
+      queryKedatangan = queryKedatangan.lte('tanggal', upToDate)
+    }
+
+    const [resReports, resKedatangan] = await Promise.all([queryReports, queryKedatangan])
+
+    const totalReports = resReports.count || 0
+    const totalKedatangan = resKedatangan.count || 0
+    const persentase = totalReports > 0 
+      ? Math.round((totalKedatangan / totalReports) * 100) 
+      : 0
+
+    return {
+      totalReports,
+      totalKedatangan,
+      persentase,
+      error: null
+    }
+  } catch (err) {
+    console.error('Gagal memuat statistik kumulatif:', err.message)
+    return {
+      totalReports: 0,
+      totalKedatangan: 0,
+      persentase: 0,
+      error: err.message
+    }
   }
 }
