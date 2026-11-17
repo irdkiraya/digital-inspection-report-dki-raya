@@ -43,25 +43,30 @@ const getActiveProfileId = () => {
   return profile ? profile.id : null
 }
 
-// Cek apakah cabang yang aktif adalah irserang@gmail.com
-const isIrSerang = computed(() => {
+// Cek apakah cabang yang aktif adalah Serang (irserang@gmail.com / PT. ASTRA DAIHATSU SERANG / Kota Serang)
+const isCabangSerang = computed(() => {
   if (!activeProfile.value) return false
-  const identifier = (
-    activeProfile.value.email || 
-    activeProfile.value.username || 
-    activeProfile.value.nama || 
-    ''
-  ).toLowerCase().trim()
   
-  return identifier === 'irserang@gmail.com'
+  const email = (activeProfile.value.email || '').toLowerCase()
+  const nama = (activeProfile.value.nama || '').toLowerCase()
+  const kota = (activeProfile.value.kota || '').toLowerCase()
+  const username = (activeProfile.value.username || '').toLowerCase()
+  
+  return (
+    email.includes('irserang') ||
+    email.includes('serang') ||
+    nama.includes('serang') ||
+    kota.includes('serang') ||
+    username.includes('serang')
+  )
 })
 
 // Konfigurasi dinamis berdasarkan cabang
 const branchConfig = computed(() => {
-  if (isIrSerang.value) {
+  if (isCabangSerang.value) {
     return {
       diskon: '10%',
-      noRekening: '093.3022.2533'
+      noRekening: '093.3022533'
     }
   }
   return {
@@ -220,7 +225,7 @@ async function save() {
             Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa {{ branchConfig.diskon }}.
           </p>
           <p v-if="branchConfig.noRekening" class="text-xs text-slate-700 font-semibold">
-            No. Rekening Pembayaran: <span class="text-blue-700 font-bold">{{ branchConfig.noRekening }}</span>
+            No. Rekening BCA: <span class="text-blue-700 font-bold">{{ branchConfig.noRekening }}</span>
           </p>
         </div>
         <div class="text-right w-full sm:w-auto">
