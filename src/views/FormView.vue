@@ -363,12 +363,19 @@ async function save() {
           <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wide">
             Lampiran Foto Kerusakan (Opsional — Bisa Lebih dari 1 Foto)
           </label>
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <label class="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs cursor-pointer transition shadow-2xs">
+              <i class="fa-solid fa-camera"></i>
+              <span>Ambil Foto (Kamera)</span>
+              <input type="file" accept="image/*" capture="environment" @change="handleMultiplePhotos" class="hidden" />
+            </label>
+
             <label class="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 rounded-2xl font-bold text-xs cursor-pointer transition shadow-2xs">
-              <i class="fa-solid fa-camera text-blue-600"></i>
-              <span>{{ photoList.length ? 'Tambah Foto Lagi' : 'Pilih / Ambil Foto Kerusakan' }}</span>
+              <i class="fa-solid fa-images text-blue-600"></i>
+              <span>Pilih dari Galeri</span>
               <input type="file" accept="image/*" multiple @change="handleMultiplePhotos" class="hidden" />
             </label>
+
             <span v-if="photoList.length" class="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-xl border border-blue-200">
               {{ photoList.length }} Foto Terlampir
             </span>
