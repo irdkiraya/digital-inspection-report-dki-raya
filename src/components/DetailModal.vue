@@ -1,9 +1,15 @@
 <script setup>
-import { rp, fd, total, exportPdf } from '../utils'
+import { computed } from 'vue'
+import { rp, fd, total, exportPdf, isCabangSerangProfile } from '../utils'
 import { fetchAdvisorsByProfile } from '../services/inspectionsServicesSupabase'
 
 const props = defineProps({ item: Object })
 defineEmits(['close'])
+
+// Konfigurasi dinamis diskon & rekening untuk tampilan Detail Modal
+const isSerang = computed(() => isCabangSerangProfile())
+const diskonJasa = computed(() => (isSerang.value ? '10%' : '15%'))
+const noRekeningBca = computed(() => (isSerang.value ? '093.3022533' : '764.361.9999'))
 
 // Fungsi handle export PDF dinamis berdasarkan profil cabang
 async function handleExportPdf() {
@@ -18,7 +24,6 @@ async function handleExportPdf() {
     console.error('Gagal memuat data advisor untuk PDF:', err)
   }
 
-  // Panggil exportPdf dengan menyertakan data item dan daftar advisor cabang
   exportPdf(props.item, advisors)
 }
 </script>
@@ -109,9 +114,12 @@ async function handleExportPdf() {
         </div>
 
         <!-- CATATAN / NOTE -->
-        <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2.5 text-amber-900 text-xs font-medium shadow-2xs">
-          <i class="fa-regular fa-lightbulb shrink-0 text-amber-600 text-sm"></i>
-          <span>Bawa kembali form ini untuk mendapatkan diskon jasa 10%.</span>
+        <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-900 text-xs font-medium shadow-2xs">
+          <i class="fa-regular fa-lightbulb shrink-0 text-amber-600 text-sm mt-0.5"></i>
+          <div class="space-y-1">
+            <p>Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa <strong>{{ diskonJasa }}</strong>.</p>
+            <p class="text-[11px] text-amber-800">Rekening BCA An. PT. Astra International Tbk — No. Rekening: <strong>{{ noRekeningBca }}</strong></p>
+          </div>
         </div>
 
       </div>
@@ -121,7 +129,6 @@ async function handleExportPdf() {
         <button @click="$emit('close')" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs transition shadow-2xs">
           Tutup
         </button>
-        <!-- Tombol memanggil handleExportPdf agar daftar advisor cabang ikut dimuat ke PDF -->
         <button @click="handleExportPdf" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs transition shadow-sm shadow-blue-200 flex items-center gap-2">
           <i class="fa-solid fa-file-pdf text-xs"></i>
           <span>Export PDF</span>

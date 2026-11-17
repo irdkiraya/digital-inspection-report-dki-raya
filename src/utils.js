@@ -7,6 +7,30 @@ export const rp = (n) => 'Rp ' + (n || 0).toLocaleString('id-ID')
 export const fd = (d) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'
 
+// Helper untuk mengecek apakah profil cabang aktif adalah Serang
+export function isCabangSerangProfile(profile = null) {
+  let p = profile
+  if (!p) {
+    try {
+      p = JSON.parse(localStorage.getItem('active_profile')) || {}
+    } catch {
+      p = {}
+    }
+  }
+  const email = (p.email || '').toLowerCase()
+  const nama = (p.nama || '').toLowerCase()
+  const kota = (p.kota || '').toLowerCase()
+  const username = (p.username || '').toLowerCase()
+
+  return (
+    email.includes('irserang') ||
+    email.includes('serang') ||
+    nama.includes('serang') ||
+    kota.includes('serang') ||
+    username.includes('serang')
+  )
+}
+
 // Helper untuk mengubah gambar lokal public menjadi Base64 untuk jsPDF
 async function getBase64ImageFromURL(url) {
   return new Promise((resolve, reject) => {
@@ -35,7 +59,11 @@ export async function exportPdf(r, advisors = []) {
     profile = {}
   }
 
-  const namaCabang = profile.nama ||'PT. ASTRA DAIHATSU'
+  const isSerang = isCabangSerangProfile(profile)
+  const diskonJasa = isSerang ? '10%' : '15%'
+  const noRekeningBca = isSerang ? '093.3022533' : '764.361.9999'
+
+  const namaCabang = profile.nama || 'PT. ASTRA DAIHATSU'
   const alamatCabang = profile.alamat || 'Jl. Siliwangi No. 2, Pondok Benda, Pamulang'
   const kotaCabang = profile.kota ? `, ${profile.kota}` : ''
 
@@ -58,7 +86,7 @@ export async function exportPdf(r, advisors = []) {
   const splitAlamat = doc.splitTextToSize(alamatCabang + kotaCabang, 80)
   doc.text(splitAlamat, 10, 28)
 
-  // 3. Header Kanan: Informasi Estimasi & Daftar Advisor (Menangani .phone / .telp / .no_telp)
+  // 3. Header Kanan: Informasi Estimasi & Daftar Advisor
   doc.setFontSize(8).setFont(undefined, 'bold')
   doc.text('Informasi Estimasi / Booking Service (H-2)', 200, 10, { align: 'right' })
   
@@ -111,10 +139,10 @@ export async function exportPdf(r, advisors = []) {
     margin: { left: 10, right: 10 }
   })
 
-  // 7. Catatan Kaki Bawah & Informasi Rekening Pembayaran
+  // 7. Catatan Kaki Bawah & Informasi Rekening Pembayaran (Dinamis sesuai Cabang)
   let currentY = doc.lastAutoTable.finalY + 6
   doc.setFontSize(7.5).setFont(undefined, 'normal')
-  doc.text('*Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa 15%', 10, currentY)
+  doc.text(`*Bawa kembali form ini & lakukan booking H-2 untuk mendapatkan diskon jasa ${diskonJasa}`, 10, currentY)
   
   currentY += 5
   doc.setFont(undefined, 'bold')
@@ -124,7 +152,7 @@ export async function exportPdf(r, advisors = []) {
   currentY += 4
   doc.text('An. PT. Astra International Tbk', 10, currentY)
   currentY += 4
-  doc.text('No Rekening : 764.361.9999', 10, currentY)
+  doc.text(`No Rekening : ${noRekeningBca}`, 10, currentY)
 
   // Simpan File PDF
   doc.save(`inspection-${r.id}-${r.polisi.replace(/\s+/g, '')}.pdf`)
@@ -137,7 +165,6 @@ export function exportExcel(rows) {
   }
 
   const dataToExport = rows.map((r, index) => {
-    // Menggabungkan daftar jasa/sparepart menjadi satu teks (misal: "Ganti Oli (1), Filter Oli (1)")
     const daftarItem = r.items && r.items.length 
       ? r.items.map(i => `${i.jasa} (Qty: ${i.qty}, ${rp(i.harga)})`).join('; ') 
       : '-'
