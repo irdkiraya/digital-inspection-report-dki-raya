@@ -20,15 +20,46 @@ export async function fetchAdvisorsByProfile(profileId) {
 }
 
 /**
+ * Upload satu file foto inspeksi ke Supabase Storage dan kembalikan Public URL-nya
+ */
+export async function uploadInspectionPhoto(file, profileId) {
+  try {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${profileId}/${Date.now()}-${Math.random().toString(36).substring(2, 8)}.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('inspection-photos')
+      .upload(fileName, file, { cacheControl: '3600', upsert: false })
+
+    if (uploadError) throw uploadError
+
+    const { data } = supabase.storage
+      .from('inspection-photos')
+      .getPublicUrl(fileName)
+
+    return { url: data.publicUrl, error: null }
+  } catch (err) {
+    console.error('Gagal upload foto:', err.message)
+    return { url: null, error: err.message }
+  }
+}
+
+/**
  * Menyimpan data inspeksi baru atau memperbarui data yang sudah ada (Mode Edit)
  */
 export async function saveInspectionRecord(record, profileId, isEdit = false) {
   try {
-    // 1. Validasi relasi item jasa
-    const validItems = record.items.filter(i => i.jasa && i.jasa.trim() !== '')
+    // 1. Validasi relasi item jasa (Maksimal 30 baris)
+    const validItems = record.items.filter(i => i.jasa && i.jasa.trim() !== '').slice(0, 30)
     if (!validItems.length) {
       return { success: false, error: 'Minimal harus ada satu baris jasa atau sparepart yang diisi.' }
     }
+
+    // Simpan array foto sebagai JSON string di kolom foto_url (null jika kosong)
+    const serializedPhotos =
+      Array.isArray(record.photos) && record.photos.length > 0
+        ? JSON.stringify(record.photos)
+        : (record.foto_url || null)
 
     if (isEdit) {
       // --- PROSES UPDATE / EDIT ---
@@ -41,7 +72,8 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
           telp: record.telp,
           namaMekanik: record.namaMekanik,
           polisi: record.polisi.toUpperCase(),
-          rencana: record.rencana
+          rencana: record.rencana,
+          foto_url: serializedPhotos
         })
         .eq('id', record.id)
         .eq('id_profile', profileId)
@@ -86,7 +118,8 @@ export async function saveInspectionRecord(record, profileId, isEdit = false) {
           telp: record.telp,
           namaMekanik: record.namaMekanik,
           polisi: record.polisi.toUpperCase(),
-          rencana: record.rencana
+          rencana: record.rencana,
+          foto_url: serializedPhotos
         }])
 
       if (headerErr) throw headerErr
@@ -162,7 +195,6 @@ export async function fetchCumulativeStats(profileId, upToDate = null) {
     }
 
     // 2. Hitung Total Kedatangan ter-update dari awal sampai tanggal update
-    // Catatan: Sesuaikan nama tabel ('kedatangan') jika di Supabase memakai nama lain (misal 'kehadiran' atau kolom status di 'inspeksi')
     let queryKedatangan = supabase
       .from('kedatangan')
       .select('id', { count: 'exact', head: true })
