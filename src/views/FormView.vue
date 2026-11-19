@@ -68,7 +68,7 @@ const branchConfig = computed(() => {
     }
   }
   return {
-    diskon: '15%',
+    diskon: '10%',
     noRekening: null
   }
 })

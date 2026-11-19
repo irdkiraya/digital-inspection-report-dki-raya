@@ -8,7 +8,7 @@ defineEmits(['close'])
 
 // Konfigurasi dinamis diskon & rekening untuk tampilan Detail Modal
 const isSerang = computed(() => isCabangSerangProfile())
-const diskonJasa = computed(() => (isSerang.value ? '10%' : '15%'))
+const diskonJasa = computed(() => (isSerang.value ? '10%' : '10%'))
 const noRekeningBca = computed(() => (isSerang.value ? '093.3022533' : '764.361.9999'))
 
 // Fungsi handle export PDF dinamis berdasarkan profil cabang

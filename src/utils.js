@@ -134,7 +134,7 @@ export async function exportPdf(r, advisors = []) {
   const isBsd = isCabangBsdProfile(profile)
 
   // Diskon 10% untuk Serang, Pamulang, dan BSD; cabang lain 15%
-  const diskonJasa = isSerang || isPamulang || isBsd ? '10%' : '15%'
+  const diskonJasa = isSerang || isPamulang || isBsd ? '10%' : '10%'
   const noRekeningBca = isSerang
     ? '093.3022533'
     : isBsd
