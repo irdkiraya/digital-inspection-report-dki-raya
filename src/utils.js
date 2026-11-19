@@ -31,6 +31,54 @@ export function isCabangSerangProfile(profile = null) {
   )
 }
 
+// Helper untuk mengecek apakah profil cabang aktif adalah Pamulang
+export function isCabangPamulangProfile(profile = null) {
+  let p = profile
+  if (!p) {
+    try {
+      p = JSON.parse(localStorage.getItem('active_profile')) || {}
+    } catch {
+      p = {}
+    }
+  }
+  const email = (p.email || '').toLowerCase()
+  const nama = (p.nama || '').toLowerCase()
+  const kota = (p.kota || '').toLowerCase()
+  const alamat = (p.alamat || '').toLowerCase()
+  const username = (p.username || '').toLowerCase()
+
+  return (
+    email.includes('pamulang') ||
+    nama.includes('pamulang') ||
+    kota.includes('pamulang') ||
+    alamat.includes('pamulang') ||
+    username.includes('pamulang')
+  )
+}
+
+// Helper untuk mengecek apakah profil cabang aktif adalah BSD
+export function isCabangBsdProfile(profile = null) {
+  let p = profile
+  if (!p) {
+    try {
+      p = JSON.parse(localStorage.getItem('active_profile')) || {}
+    } catch {
+      p = {}
+    }
+  }
+  const email = (p.email || '').toLowerCase()
+  const nama = (p.nama || '').toLowerCase()
+  const alamat = (p.alamat || '').toLowerCase()
+  const username = (p.username || '').toLowerCase()
+
+  return (
+    email.includes('bsd') ||
+    nama.includes('bsd') ||
+    alamat.includes('bsd') ||
+    username.includes('bsd')
+  )
+}
+
 // Helper parsing daftar foto dari kolom foto_url (JSON array atau single URL string)
 export function parseInspectionPhotos(fotoUrlField) {
   if (!fotoUrlField) return []
@@ -82,8 +130,16 @@ export async function exportPdf(r, advisors = []) {
   }
 
   const isSerang = isCabangSerangProfile(profile)
-  const diskonJasa = isSerang ? '10%' : '15%'
-  const noRekeningBca = isSerang ? '093.3022533' : '764.361.9999'
+  const isPamulang = isCabangPamulangProfile(profile)
+  const isBsd = isCabangBsdProfile(profile)
+
+  // Diskon 10% untuk Serang, Pamulang, dan BSD; cabang lain 15%
+  const diskonJasa = isSerang || isPamulang || isBsd ? '10%' : '15%'
+  const noRekeningBca = isSerang
+    ? '093.3022533'
+    : isBsd
+      ? '4970-836-000'
+      : '764.361.9999'
 
   const namaCabang = profile.nama || 'PT. ASTRA DAIHATSU'
   const alamatCabang = profile.alamat || 'Jl. Siliwangi No. 2, Pondok Benda, Pamulang'
