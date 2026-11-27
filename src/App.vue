@@ -116,7 +116,7 @@ async function onDelete(r) {
       <div v-else key="app" class="app-layout bg-[#F3F6FC] min-h-screen md:h-screen flex flex-col md:flex-row p-3 md:p-4 gap-4 md:gap-6 overflow-x-hidden md:overflow-hidden font-['Poppins',sans-serif] pb-24 md:pb-4 relative">
 
         <!-- DESKTOP SIDEBAR -->
-        <aside class="hidden md:flex w-72 bg-white rounded-3xl p-5 flex-col justify-between shadow-sm border border-slate-200/80 shrink-0">
+        <aside class="hidden md:flex w-72 bg-white rounded-3xl p-5 flex-col justify-between shadow-sm border border-slate-200/80 shrink-0 h-[calc(100vh-2rem)]">
           <div>
             <div class="mb-8 px-2">
               <h1 class="font-bold text-slate-900 text-base tracking-wide">ASTRA DAIHATSU</h1>
@@ -140,7 +140,7 @@ async function onDelete(r) {
                 <span>Input Form</span>
               </button>
 
-              <!-- DIUBAH: Kehadiran -> Kedatangan -->
+              <!-- Kedatangan -->
               <button
                 class="w-full flex items-center gap-3.5 px-4 py-3 rounded-2xl text-xs font-bold transition-all duration-200 text-left"
                 :class="page === 'attendance' ? 'bg-sky-50 text-sky-700 border border-sky-200 shadow-2xs' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'"
@@ -151,20 +151,29 @@ async function onDelete(r) {
             </nav>
           </div>
 
-          <!-- INFO PROFIL & TOMBOL LOGOUT -->
-          <div class="px-2 pt-4 border-t border-slate-200 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-bold text-xs shadow-2xs">
-                {{ currentProfile.nama.charAt(0) }}
+          <!-- INFO PROFIL, TOMBOL LOGOUT & COPYRIGHT -->
+          <div class="pt-4 border-t border-slate-200 mt-auto">
+            <div class="px-2 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-bold text-xs shadow-2xs">
+                  {{ currentProfile.nama.charAt(0) }}
+                </div>
+                <div class="overflow-hidden">
+                  <p class="text-[11px] font-bold text-slate-800 truncate">{{ currentProfile.nama }}</p>
+                  <p class="text-[10px] text-slate-500 truncate">{{ currentProfile.email }}</p>
+                </div>
               </div>
-              <div class="overflow-hidden">
-                <p class="text-[11px] font-bold text-slate-800 truncate">{{ currentProfile.nama }}</p>
-                <p class="text-[10px] text-slate-500 truncate">{{ currentProfile.email }}</p>
-              </div>
+              <button @click="handleLogout" class="text-slate-400 hover:text-rose-600 transition p-2" title="Keluar Akun">
+                <i class="fa-solid fa-right-from-bracket text-xs"></i>
+              </button>
             </div>
-            <button @click="handleLogout" class="text-slate-400 hover:text-rose-600 transition p-2" title="Keluar Akun">
-              <i class="fa-solid fa-right-from-bracket text-xs"></i>
-            </button>
+
+            <!-- Teks Copyright di Bawah Email Pengguna -->
+            <div class="mt-4 pt-3 border-t border-dashed border-slate-200 text-center">
+              <p class="text-[10px] text-slate-400 leading-tight">
+                &copy; 2026 Fathin Fikry dev.<br>All rights reserved.
+              </p>
+            </div>
           </div>
         </aside>
 
@@ -205,7 +214,6 @@ async function onDelete(r) {
             <span class="text-[10px]">Input Form</span>
           </button>
 
-          <!-- DIUBAH: Kehadiran -> Kedatangan -->
           <button @click="page = 'attendance'; editItem = null" class="flex flex-col items-center gap-1 transition-all"
             :class="page === 'attendance' ? 'text-blue-600 font-extrabold' : 'text-slate-400 font-semibold'">
             <i class="fa-solid fa-clipboard-user text-sm"></i>

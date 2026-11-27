@@ -110,7 +110,7 @@ function handleFilterChange() {
 </script>
 
 <template>
-  <div class="p-4 md:p-8 space-y-6">
+  <div class="p-4 md:p-8 space-y-6 flex flex-col min-h-screen">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h1 class="text-xl font-extrabold text-slate-800 tracking-tight">Data Inspeksi</h1>
@@ -294,6 +294,11 @@ function handleFilterChange() {
         Berikutnya <i class="fa-solid fa-chevron-right ml-1"></i>
       </button>
     </div>
+
+    <!-- FOOTER COPYRIGHT DI DALAM VIEW -->
+    <footer class="mt-auto pt-6 text-center text-xs text-slate-400 border-t border-slate-200">
+      <p>&copy; 2026 Fathin Fikry dev. All rights reserved.</p>
+    </footer>
 
   </div>
 </template>
