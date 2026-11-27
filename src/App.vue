@@ -168,10 +168,10 @@ async function onDelete(r) {
               </button>
             </div>
 
-            <!-- Teks Copyright di Bawah Email Pengguna -->
+            <!-- Teks Copyright Sejajar (Satu Baris) -->
             <div class="mt-4 pt-3 border-t border-dashed border-slate-200 text-center">
-              <p class="text-[10px] text-slate-400 leading-tight">
-                &copy; 2026 Fathin Fikry dev.<br>All rights reserved.
+              <p class="text-[9px] text-slate-400 font-medium whitespace-nowrap">
+                &copy; 2026 Fathin Fikry dev. All rights reserved.
               </p>
             </div>
           </div>
